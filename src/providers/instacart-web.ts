@@ -21,9 +21,15 @@
  * headers, operation names and the persisted-query mechanism were read from that
  * project and reimplemented; no code was copied.
  *
- * ⚠️  NOT VERIFIED LIVE — writing this required an Instacart account and session
- *     cookie, which we do not have. The transport follows the documented shape.
- *     If you run it successfully, please say so on the issue tracker.
+ * PARTIALLY VERIFIED LIVE (2026-08-03), which is better than it sounds:
+ *
+ *   ✓ The endpoint is not bot-walled — plain nginx, HTTP 200, no Cloudflare
+ *     challenge (unlike DoorDash).
+ *   ✓ The persisted-query hashes below are CURRENT. The server resolved them and
+ *     validated variables, which it would not do for a stale hash.
+ *   ✓ SearchCrossRetailerGroupResults runs ANONYMOUSLY and returns real itemIds.
+ *   ✗ Items returns "Not Authenticated" without a cookie, so hydrating names and
+ *     prices still needs a session. Untested with a real one.
  */
 
 import axios, { AxiosInstance } from 'axios';
@@ -70,10 +76,11 @@ export class InstacartWebProvider {
   private http: AxiosInstance;
   private zoneId?: string;
   private postalCode?: string;
+  private shopId?: string;
 
   constructor(
     sessionCookie = process.env.INSTACART_SESSION_COOKIE,
-    opts: { zoneId?: string; postalCode?: string } = {}
+    opts: { zoneId?: string; postalCode?: string; shopId?: string } = {}
   ) {
     if (!sessionCookie) {
       throw new Error(
@@ -85,6 +92,7 @@ export class InstacartWebProvider {
     }
     this.zoneId = opts.zoneId ?? process.env.INSTACART_ZONE_ID;
     this.postalCode = opts.postalCode ?? process.env.INSTACART_POSTAL_CODE;
+    this.shopId = opts.shopId ?? process.env.INSTACART_SHOP_ID;
 
     this.http = axios.create({
       timeout: 20_000,
@@ -141,55 +149,92 @@ export class InstacartWebProvider {
     return this.unwrap(data, operation);
   }
 
-  private requireLocation(): { zoneId: string; postalCode: string } {
-    if (!this.zoneId || !this.postalCode) {
+  private requireLocation(): { zoneId: string; postalCode: string; shopId: string } {
+    if (!this.zoneId || !this.postalCode || !this.shopId) {
       throw new Error(
-        'Instacart web needs a delivery location to scope search and pricing.\n' +
-          'Set INSTACART_POSTAL_CODE and INSTACART_ZONE_ID. Both appear in the\n' +
-          'GraphQL request variables on instacart.com — open devtools and look at\n' +
-          'any search request.'
+        'Instacart web needs a location and a store to scope search and pricing.\n' +
+          'Set INSTACART_ZONE_ID, INSTACART_POSTAL_CODE and INSTACART_SHOP_ID.\n\n' +
+          'All three are embedded in any storefront page. For example:\n' +
+          '  curl -s https://www.instacart.com/store/costco/storefront \\\n' +
+          '    | python3 -c "import sys,urllib.parse,re; \\\n' +
+          '        s=urllib.parse.unquote(urllib.parse.unquote(sys.stdin.read())); \\\n' +
+          '        print({k:re.findall(chr(34)+k+chr(34)+r\'\\s*:\\s*\"?([0-9]+)\"?\', s)[:1] \\\n' +
+          '               for k in (\'zoneId\',\'shopId\',\'postalCode\')})"\n\n' +
+          'They are per-store and per-area, so use a store that delivers to you.'
       );
     }
-    return { zoneId: this.zoneId, postalCode: this.postalCode };
+    return { zoneId: this.zoneId, postalCode: this.postalCode, shopId: this.shopId };
   }
 
+  /**
+   * Search is TWO calls, and the first one needs no authentication.
+   *
+   * Verified against the live endpoint 2026-08-03:
+   *
+   *   SearchCrossRetailerGroupResults  → anonymous, returns `results[].itemIds`
+   *   Items                            → "Not Authenticated" without a cookie
+   *
+   * So the search half works for anyone; only hydrating names and prices needs
+   * the session. That is why a failure here reads very differently depending on
+   * which leg broke, and why the two are reported separately.
+   *
+   * The required variables were discovered by letting the server name each
+   * missing one in turn. `shopId` (singular) is required *in addition to*
+   * `shopIds`, and `searchSource` is mandatory — omitting any of them fails
+   * validation before the query runs.
+   */
   async search(query: string, options: SearchOptions = {}): Promise<Product[]> {
-    const { zoneId, postalCode } = this.requireLocation();
+    const { zoneId, postalCode, shopId } = this.requireLocation();
     const limit = options.limit ?? 10;
 
-    const data = await this.query('SearchCrossRetailerGroupResults', {
+    const searchData = await this.query('SearchCrossRetailerGroupResults', {
       query,
       zoneId,
       postalCode,
+      shopId,
+      shopIds: [shopId],
       first: limit,
+      searchSource: 'search',
     });
 
-    // The response nests differently across builds; probe the known shapes
-    // rather than assuming one and returning silently-empty results.
-    const groups =
-      data?.searchCrossRetailerGroupResults?.groups ??
-      data?.searchCrossRetailerGroupResults?.results ??
-      [];
-
-    const products: Product[] = [];
+    const groups = searchData?.searchCrossRetailerGroupResults?.results ?? [];
+    const itemIds: string[] = [];
     for (const group of groups) {
-      for (const item of group?.items ?? group?.products ?? []) {
-        products.push({
-          product_uid: String(item?.id ?? item?.legacyId ?? ''),
-          name: item?.name ?? item?.displayName ?? '(unnamed)',
-          retail_price: {
-            price: Number(item?.pricing?.price ?? item?.price ?? 0),
-          },
-          in_stock: item?.available !== false,
-          currency: 'USD',
-          image_url: item?.viewSection?.itemImage?.url ?? item?.imageUrl,
-          provider: this.name,
-          size: item?.size ?? item?.packSize,
-        });
-        if (products.length >= limit) return products;
+      for (const id of group?.itemIds ?? []) {
+        if (itemIds.length < limit) itemIds.push(String(id));
       }
     }
-    return products;
+    if (itemIds.length === 0) return [];
+
+    // Second leg. This is the one that needs the cookie.
+    const itemData = await this.query('Items', {
+      ids: itemIds,
+      zoneId,
+      postalCode,
+      shopId,
+    });
+
+    const items = itemData?.items ?? [];
+    return items.map((item: any): Product => {
+      const view = item?.viewSection ?? {};
+      // Prices come back as display strings ("$4.99") more often than numbers.
+      const raw = view.priceString ?? item?.pricing?.price ?? 0;
+      const price =
+        typeof raw === 'number'
+          ? raw
+          : Number(String(raw).replace(/[^0-9.]/g, '')) || 0;
+
+      return {
+        product_uid: String(item?.id ?? ''),
+        name: item?.name ?? view.titleString ?? '(unnamed)',
+        retail_price: { price },
+        in_stock: item?.available !== false,
+        currency: 'USD',
+        image_url: view.itemImage?.url ?? item?.imageUrl,
+        provider: this.name,
+        size: item?.size ?? view.sizeString,
+      };
+    });
   }
 
   async getBasket(): Promise<Basket> {

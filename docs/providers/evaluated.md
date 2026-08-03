@@ -91,3 +91,42 @@ target, the useful signals are, in order:
    non-redistributable, like certificates?
 4. Star counts on a reverse-engineering repo measure how hard the problem was, not
    how easy it will be for you.
+
+---
+
+## Instacart (US/CA) — unofficial path, partially verified 2026-08-03
+
+Not a rejection. Recorded here because the probing produced facts worth keeping.
+
+**The endpoint is open.** `www.instacart.com` is plain nginx, HTTP 200, no Cloudflare
+challenge. Compare DoorDash above.
+
+**The persisted-query hashes are current.** Sent
+`SearchCrossRetailerGroupResults` with the hash captured from
+[kleinjm/instacart_api](https://github.com/kleinjm/instacart_api) and the server
+resolved it, then complained about missing variables. A stale hash returns
+`PersistedQueryNotSupported` instead, so this is a genuine liveness check that costs
+one unauthenticated request. **Re-run it before debugging anything else.**
+
+**Search is anonymous; item detail is not.**
+
+| Operation | Anonymous | Returns |
+|---|---|---|
+| `SearchCrossRetailerGroupResults` | ✓ | `results[].itemIds` — 20 real ids |
+| `Items` | ✗ `Not Authenticated` | names, prices |
+
+**Required variables**, discovered by letting the server name each missing one in
+turn: `query`, `zoneId`, `postalCode`, `shopIds` (array), `shopId` (singular, required
+*as well as* the array), `first`, `searchSource`. Omitting any fails validation before
+the query runs.
+
+**Getting real ids.** They are embedded, URL-encoded, in any storefront page:
+
+```bash
+curl -s https://www.instacart.com/store/costco/storefront \
+  | python3 -c "import sys,urllib.parse,re;s=urllib.parse.unquote(urllib.parse.unquote(sys.stdin.read()));
+print({k:re.findall(chr(34)+k+chr(34)+r'\s*:\s*\"?([0-9]+)\"?',s)[:1] for k in ('zoneId','shopId','postalCode')})"
+```
+
+At time of writing Costco SF returned `zoneId=1`, `shopId=12`, `retailerId=5`,
+`postalCode=94105`. They are per-store and per-area — use one that delivers to you.
