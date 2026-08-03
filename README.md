@@ -176,6 +176,12 @@ export class MySupermarketProvider {
 **3. Open a PR.** `src/providers/ah.ts` is the reference implementation — anonymous
 token, catalogue search, about 150 lines, no account required.
 
+**Before you start**, check [docs/providers/evaluated.md](docs/providers/evaluated.md).
+It records what has already been probed and rejected, and why — REWE needs client
+certificates extracted from its APK, Jumbo refuses the TLS handshake, DoorDash serves
+an active Cloudflare challenge. Rejections are dated, so an old "no" is a reason to
+re-probe rather than to stop.
+
 ### The rules that stop this rotting
 
 - **Every provider has a maintainer of record.** Keeping fifty reverse-engineered
