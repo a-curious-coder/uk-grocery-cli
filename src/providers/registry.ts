@@ -102,7 +102,7 @@ export class UnknownProviderError extends Error {
     super(
       `Unknown provider: "${id}".\n` +
         `Available: ${available.join(', ')}\n` +
-        `Run \`groc providers\` to see them with countries and capabilities.`
+        `Run \`supermarket providers\` to see them with countries and capabilities.`
     );
     this.name = 'UnknownProviderError';
   }
@@ -112,7 +112,7 @@ export class MissingCapabilityError extends Error {
   constructor(providerId: string, capability: Capability) {
     super(
       `${providerId} does not support "${capability}".\n` +
-        `Run \`groc providers\` to see what it can do.`
+        `Run \`supermarket providers\` to see what it can do.`
     );
     this.name = 'MissingCapabilityError';
   }
@@ -176,7 +176,9 @@ export async function createProvider(id: string): Promise<GroceryProvider> {
  */
 export function resolveCountry(explicit?: string): string {
   if (explicit) return explicit.toUpperCase();
-  if (process.env.GROC_COUNTRY) return process.env.GROC_COUNTRY.toUpperCase();
+  // GROC_* is the pre-3.0 prefix, still honoured so existing setups keep working.
+  const fromEnvVar = process.env.SUPERMARKET_COUNTRY ?? process.env.GROC_COUNTRY;
+  if (fromEnvVar) return fromEnvVar.toUpperCase();
 
   const locale =
     process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG || '';
@@ -206,7 +208,7 @@ export function providersFor(country: string, capability?: Capability): Provider
       throw new Error(
         `No providers for country "${country}". ` +
           `Countries covered: ${countries().join(', ')}.\n` +
-          `Set one with --country, or GROC_COUNTRY.`
+          `Set one with --country, or SUPERMARKET_COUNTRY.`
       );
     }
     throw new Error(

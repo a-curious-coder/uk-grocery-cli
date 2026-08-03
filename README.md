@@ -9,16 +9,16 @@ Search real products at real prices, build a basket, book a slot, check out — 
 retailers and across countries, from a terminal or from an AI agent over MCP.
 
 ```console
-$ groc search "semi skimmed milk" --compare
+$ supermarket search "semi skimmed milk" --compare
   Tesco        Tesco Semi Skimmed Milk 2.27L          £1.45   in stock
   Sainsbury's  Sainsbury's British Semi Skimmed 2.2L  £1.45   in stock
   Ocado        Ocado Semi Skimmed Milk 2.27L          £1.50   in stock
 
-$ groc search melk --country NL
+$ supermarket search melk --country NL
   Arla Biologisch halfvolle melk 3-pack   €5.10    3 stuks
   Campina Langlekker halfvolle melk       €12.89   8 stuks
 
-$ groc search "tesco semi skimmed milk 2l" --enrich
+$ supermarket search "tesco semi skimmed milk 2l" --enrich
   Tesco Semi Skimmed Milk 2L   £1.45
     Nutri-Score B · allergens: milk · matched by name
 ```
@@ -42,7 +42,7 @@ works out *where*, *how much*, and *how to actually order it*.
 
 ```bash
 npm install -g open-supermarkets
-groc providers
+supermarket providers
 ```
 
 Or from source:
@@ -54,8 +54,9 @@ npx playwright install chromium   # only for browser-auth providers
 npm link
 ```
 
-The command is `groc`. It has been `groc` since the UK-only days and it stays `groc`
-— your shell history and your scripts keep working.
+The command is `supermarket`. If you used this when it was UK-only, `groc` still
+works and prints a deprecation note — it is going away in v4 because the unrelated
+`groc` npm package ships its own `groc` binary and the two cannot share a PATH.
 
 ---
 
@@ -74,7 +75,7 @@ fewer.
 | Instacart | US / CA | ✓ | ✓ | — | via link | official API key |
 | Instacart (unofficial) | US / CA | ✓ | ✓ | — | — | browser session |
 
-`groc providers` prints this live, generated from the registry, so it cannot drift
+`supermarket providers` prints this live, generated from the registry, so it cannot drift
 from reality the way a hand-maintained table does.
 
 Ocado's slot *booking* and checkout are blocked by AWS WAF bot detection as of
@@ -95,7 +96,7 @@ anything else speaking MCP can shop.
 ```json
 {
   "mcpServers": {
-    "groceries": { "command": "groc-mcp" }
+    "groceries": { "command": "supermarket-mcp" }
   }
 }
 ```
@@ -119,7 +120,7 @@ the basket. You approve the checkout.
 | `ocado_regulars` · `tesco_staples` | Repeat-purchase lists |
 | `grocery_login` · `grocery_status` · `grocery_providers` | Session and discovery |
 
-There's also `groc-api` for a plain HTTP server if you'd rather not speak MCP — useful
+There's also `supermarket-api` for a plain HTTP server if you'd rather not speak MCP — useful
 for agents with network access but no filesystem. See [SKILL.md](SKILL.md) and
 [`skills/`](skills/) for the full reference.
 
@@ -138,7 +139,7 @@ list({ country: 'NL', capability: 'search' });  // loads no provider code at all
 const ah = await createProvider('ah');          // loads exactly one
 ```
 
-Country resolution: the `--country` flag, then `GROC_COUNTRY`, then your system
+Country resolution: the `--country` flag, then `SUPERMARKET_COUNTRY`, then your system
 locale.
 
 ---

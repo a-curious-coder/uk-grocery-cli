@@ -16,11 +16,25 @@ import type { TescoProvider } from './providers/tesco/index';
 
 const program = new Command();
 
+// Invoked as `supermarket`. `groc` still works as a deprecated alias — it was the
+// name while this was UK-only, and it is being retired because the `groc` npm
+// package (a literate-programming doc generator) ships its own `groc` binary, so
+// the two cannot coexist on one PATH.
+const invokedAs = require('path').basename(process.argv[1] || 'supermarket')
+  .replace(/\.(js|ts)$/, '');
+
+if (invokedAs.startsWith('groc')) {
+  console.error(
+    '\x1b[33mnote:\x1b[0m `groc` is deprecated and will be removed in v4. ' +
+    'Use `supermarket` instead — same flags, no other change.\n'
+  );
+}
+
 program
-  .name('groc')
-  .description('UK Grocery CLI - Multi-supermarket grocery automation')
-  .version('2.1.0')
-  .option('-p, --provider <name>', 'Provider: sainsburys, ocado, tesco', 'sainsburys');
+  .name(invokedAs.startsWith('groc') ? invokedAs : 'supermarket')
+  .description("One command line for the world's supermarkets. Built for agents.")
+  .version('3.0.0')
+  .option('-p, --provider <name>', 'Provider id (see `supermarket providers`)', 'sainsburys');
 
 // Parse a string as a positive integer, or throw
 function parsePositiveInt(value: string, name: string): number {
@@ -70,14 +84,17 @@ function printProducts(products: any[]) {
 program
   .command('login')
   .description('Login to supermarket account')
-  .option('-e, --email <email>', 'Email address (or set GROC_EMAIL)')
-  .option('--password [password]', 'Password (or set GROC_PASSWORD; omit to be prompted interactively)')
+  .option('-e, --email <email>', 'Email address (or set SUPERMARKET_EMAIL)')
+  .option('--password [password]', 'Password (or set SUPERMARKET_PASSWORD; omit to be prompted interactively)')
   .action(async (options, cmd) => {
     try {
-      const email = options.email || process.env.GROC_EMAIL;
-      const password = options.password || process.env.GROC_PASSWORD;
+      // SUPERMARKET_* is preferred; GROC_* still works for pre-3.0 setups.
+      const email =
+        options.email || process.env.SUPERMARKET_EMAIL || process.env.GROC_EMAIL;
+      const password =
+        options.password || process.env.SUPERMARKET_PASSWORD || process.env.GROC_PASSWORD;
       if (!email || !password) {
-        console.error('❌ Email and password required. Use --email/--password or set GROC_EMAIL/GROC_PASSWORD.');
+        console.error('❌ Email and password required. Use --email/--password or set SUPERMARKET_EMAIL/SUPERMARKET_PASSWORD.');
         process.exit(1);
       }
       const provider = getProvider(cmd.optsWithGlobals());
@@ -142,7 +159,7 @@ program
       }
 
       if (!authenticated) {
-        console.log('\n💡 Refresh with `groc login` or import browser cookies with `groc --provider tesco import-session --file <cookies.json>`.');
+        console.log('\n💡 Refresh with `supermarket login` or import browser cookies with `supermarket --provider tesco import-session --file <cookies.json>`.');
       }
       console.log();
     } catch (error: any) {

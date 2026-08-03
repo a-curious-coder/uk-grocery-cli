@@ -1,10 +1,13 @@
 {
-  "name": "uk-grocery-cli",
-  "version": "2.1.0",
-  "description": "Multi-supermarket grocery CLI for UK. Sainsbury's, Ocado, and more. Built for AI agents.",
+  "name": "open-supermarkets",
+  "version": "3.0.0",
+  "description": "One command line for the world's supermarkets. Search, basket, slots and checkout across retailers and countries. Built for AI agents.",
   "type": "commonjs",
   "main": "dist/cli.js",
   "bin": {
+    "supermarket": "./dist/cli.js",
+    "supermarket-mcp": "./dist/mcp-server.js",
+    "supermarket-api": "./dist/http-server.js",
     "groc": "./dist/cli.js",
     "groc-mcp": "./dist/mcp-server.js",
     "groc-api": "./dist/http-server.js"
@@ -15,27 +18,33 @@
     "groc": "tsx src/cli.ts",
     "api": "tsx src/http-server.ts",
     "mcp": "tsx src/mcp-server.ts",
-    "setup": "./setup.sh"
+    "setup": "./setup.sh",
+    "supermarket": "tsx src/cli.ts"
   },
   "keywords": [
     "groceries",
-    "sainsburys",
-    "ocado",
-    "tesco",
-    "uk",
+    "supermarket",
     "shopping",
     "automation",
     "ai-agent",
-    "cli",
     "mcp",
     "model-context-protocol",
-    "claude-desktop"
+    "cli",
+    "tesco",
+    "sainsburys",
+    "ocado",
+    "albert-heijn",
+    "instacart",
+    "open-food-facts",
+    "uk",
+    "netherlands",
+    "usa"
   ],
   "author": "Zishan Ashraf",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abracadabra50/uk-grocery-cli"
+    "url": "https://github.com/abracadabra50/open-supermarkets"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
