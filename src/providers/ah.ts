@@ -84,9 +84,23 @@ export class AlbertHeijnProvider {
       return this.token;
     } catch (err: any) {
       const status = err?.response?.status;
+
+      // 403/429 here is almost always throttling, not a broken integration —
+      // observed while developing this provider, where repeated calls started
+      // returning 403 and recovered on their own minutes later. Saying "the API
+      // may have changed, open an issue" for that produces bogus bug reports,
+      // so the transient case gets its own message.
+      if (status === 403 || status === 429) {
+        throw new Error(
+          `Albert Heijn refused the request (HTTP ${status}). This is usually rate ` +
+            `limiting rather than a broken integration — wait a minute and retry. ` +
+            `If it persists for more than an hour, please open an issue.`
+        );
+      }
+
       throw new Error(
         `Albert Heijn anonymous auth failed${status ? ` (HTTP ${status})` : ''}. ` +
-          `The API may have changed — please open an issue.`
+          `If this is reproducible, the API may have changed — please open an issue.`
       );
     }
   }
