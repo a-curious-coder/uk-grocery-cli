@@ -2,7 +2,17 @@
 
 import { Command } from 'commander';
 import { ProviderFactory, ProviderName, compareProduct } from './providers';
-import { TescoProvider } from './providers/tesco/index';
+import {
+  list as listProviders,
+  resolveCountry,
+  countries as knownCountries,
+  providersFor,
+  createProvider,
+} from './providers/registry';
+import type { Capability } from './providers/types';
+// Tesco is imported as a *type only* — a value import here would pull Playwright
+// into every `groc` invocation, including `groc providers` in another country.
+import type { TescoProvider } from './providers/tesco/index';
 
 const program = new Command();
 
@@ -27,14 +37,31 @@ function getProvider(options: any) {
   return ProviderFactory.create(providerName as ProviderName);
 }
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  GBP: '£', EUR: '€', USD: '$', CAD: 'CA$', AUD: 'A$', PLN: 'zł',
+};
+
+/** Symbol for a currency, falling back to the code itself for anything exotic. */
+function sym(currency?: string): string {
+  const code = currency ?? 'GBP';
+  return CURRENCY_SYMBOLS[code] ?? `${code} `;
+}
+
+/** Two decimals, so 5.1 prints as 5.10 like a price rather than a float. */
+function money(amount: number, currency?: string): string {
+  return `${sym(currency)}${Number(amount).toFixed(2)}`;
+}
+
 function printProducts(products: any[]) {
   products.forEach((p, i) => {
     const stock = p.in_stock ? '✅' : '❌';
     const rating = p.rating ? ` ${p.rating}★ (${p.review_count ?? 0})` : '';
     const size = p.size ? ` / ${p.size}` : '';
-    const unit = p.unit_price?.price ? ` (£${p.unit_price.price}${p.unit_price.measure ? `/${p.unit_price.measure}` : ''})` : '';
+    const unit = p.unit_price?.price
+      ? ` (${money(p.unit_price.price, p.currency)}${p.unit_price.measure ? `/${p.unit_price.measure}` : ''})`
+      : '';
     console.log(`${i + 1}. ${p.name}${rating}`);
-    console.log(`   £${p.retail_price.price}${size}${unit} ${stock}`);
+    console.log(`   ${money(p.retail_price.price, p.currency)}${size}${unit} ${stock}`);
     console.log(`   ID: ${p.product_uid}\n`);
   });
 }
@@ -129,17 +156,54 @@ program
   .command('search <query>')
   .description('Search for products')
   .option('-l, --limit <number>', 'Max results', '24')
+  .option('-c, --country <code>', 'Country to shop in (ISO 3166-1 alpha-2)')
+  .option('--enrich', 'Add Nutri-Score, NOVA and allergens from Open Food Facts')
   .option('--json', 'Output as JSON')
   .action(async (query, options, cmd) => {
     try {
-      const provider = getProvider(cmd.optsWithGlobals());
-      const products = await provider.search(query, { limit: parsePositiveInt(options.limit, 'limit') });
-      
+      const limit = parsePositiveInt(options.limit, 'limit');
+      const globals = cmd.optsWithGlobals();
+
+      // `--country` picks the first search-capable provider there, unless a
+      // provider was named explicitly. This is what makes `search --country NL`
+      // work without the user knowing which chains exist in the Netherlands.
+      let provider;
+      if (options.country && !cmd.args.includes('--provider')) {
+        const country = resolveCountry(options.country);
+        const [first] = providersFor(country, 'search');
+        provider = await createProvider(first.id);
+      } else {
+        provider = getProvider(globals);
+      }
+
+      let products: any[] = await provider.search(query, { limit });
+
+      if (options.enrich) {
+        const { enrich } = await import('./enrich/openfoodfacts');
+        products = await enrich(products);
+      }
+
       if (options.json) {
         console.log(JSON.stringify({ products }, null, 2));
-      } else {
-        console.log(`\n🔍 Search results from ${provider.name}: "${query}"\n`);
-        printProducts(products);
+        return;
+      }
+
+      console.log(`\n🔍 Search results from ${provider.name}: "${query}"\n`);
+      printProducts(products);
+
+      if (options.enrich) {
+        products.forEach((p: any, i: number) => {
+          const n = p.nutrition;
+          if (!n) return;
+          const bits = [
+            n.nutriscore ? `Nutri-Score ${n.nutriscore.toUpperCase()}` : null,
+            n.nova ? `NOVA ${n.nova}` : null,
+            n.allergens.length ? `allergens: ${n.allergens.join(', ')}` : null,
+            n.match === 'name' ? 'matched by name' : 'matched by barcode',
+          ].filter(Boolean);
+          console.log(`   ${i + 1}. ${bits.join(' · ')}`);
+        });
+        console.log();
       }
     } catch (error: any) {
       console.error('❌ Search failed:', error.message);
@@ -579,17 +643,66 @@ program
     }
   });
 
-// List providers
+// List providers, with the capability matrix.
+//
+// Rendered from the registry rather than written by hand, so it can never claim
+// a capability a provider does not declare. Loads no provider code.
 program
   .command('providers')
-  .description('List available supermarket providers')
-  .action(() => {
-    const providers = ProviderFactory.getAvailableProviders();
-    console.log('\n📦 Available Providers:\n');
-    providers.forEach(p => {
-      console.log(`  • ${p}`);
+  .description('List providers with their countries and capabilities')
+  .option('-c, --country <code>', 'Only providers serving this country (ISO 3166-1 alpha-2)')
+  .option('--capability <name>', 'Only providers with this capability')
+  .option('--all', 'Every provider, ignoring your country')
+  .option('--json', 'Machine-readable output')
+  .action((options) => {
+    const country = options.all
+      ? undefined
+      : resolveCountry(options.country);
+
+    const manifests = listProviders({
+      country,
+      capability: options.capability,
     });
-    console.log();
+
+    if (options.json) {
+      // Drop `load`: a function is not serialisable and not useful here.
+      console.log(
+        JSON.stringify(
+          manifests.map(({ load, ...rest }) => rest),
+          null,
+          2
+        )
+      );
+      return;
+    }
+
+    if (manifests.length === 0) {
+      console.log(
+        `\nNo providers for ${country}. Countries covered: ${knownCountries().join(', ')}\n` +
+          `Try --all, or --country <code>.\n`
+      );
+      return;
+    }
+
+    const CAPS: Capability[] = ['search', 'basket', 'slots', 'checkout', 'orders'];
+    const width = Math.max(...manifests.map((m) => m.label.length), 8);
+
+    console.log(
+      country
+        ? `\nProviders in ${country}   (--all for every country)\n`
+        : '\nAll providers\n'
+    );
+    console.log(
+      `  ${'PROVIDER'.padEnd(width)}  ${CAPS.map((c) => c.slice(0, 5).padEnd(6)).join('')} AUTH`
+    );
+    for (const m of manifests) {
+      const marks = CAPS.map((c) =>
+        (m.capabilities.includes(c) ? '  ✓   ' : '  -   ')
+      ).join('');
+      const tier = m.tier === 'community' ? ' (community)' : '';
+      console.log(`  ${m.label.padEnd(width)}${marks} ${m.auth}${tier}`);
+    }
+    console.log(`\n  ${manifests.length} provider(s). Enrichment via Open Food Facts works everywhere.\n`);
   });
 
 // ─────────────────────────────────────────────────────────

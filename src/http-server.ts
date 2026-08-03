@@ -3,9 +3,9 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 import { ProviderFactory, ProviderName } from './providers';
-import type { GroceryProvider, SearchOptions } from './providers/types';
+import type { FullGroceryProvider, SearchOptions } from './providers/types';
 
-type FavouritesProvider = GroceryProvider & {
+type FavouritesProvider = FullGroceryProvider & {
   getFavourites?: (options?: SearchOptions) => Promise<unknown[]>;
   searchFavourites?: (query: string, options?: SearchOptions) => Promise<unknown[]>;
 };
@@ -32,7 +32,7 @@ function parsePositiveInt(value: string | null, name: string, defaultValue: numb
   return parsed;
 }
 
-function getProvider(url: URL): GroceryProvider {
+function getProvider(url: URL): FullGroceryProvider {
   const providerName = (url.searchParams.get('provider') || defaultProvider) as ProviderName;
   return ProviderFactory.create(providerName);
 }

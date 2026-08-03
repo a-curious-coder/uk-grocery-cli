@@ -14,7 +14,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { ProviderFactory, ProviderName, compareProduct } from './providers/index.js';
-import type { GroceryProvider } from './providers/types.js';
+import type { FullGroceryProvider } from './providers/types.js';
 import * as fs from 'fs';
 import * as os from 'os';
 
@@ -50,7 +50,7 @@ function requireLogin(provider: ProviderName): string | null {
   return null;
 }
 
-function getProvider(name: ProviderName): GroceryProvider {
+function getProvider(name: ProviderName): FullGroceryProvider {
   return ProviderFactory.create(name);
 }
 

@@ -1,0 +1,219 @@
+/**
+ * Open Food Facts enrichment.
+ *
+ * Every provider gives you a name and a price. None of them reliably give you
+ * allergens, additives, Nutri-Score or ingredients — and the ones that do use
+ * their own vocabulary, so you cannot compare across retailers or countries.
+ *
+ * Open Food Facts is an open database covering products worldwide under a free
+ * licence (ODbL for the data). One integration enriches every provider in every
+ * country, needs no key, and cannot be WAF-blocked. It is the cheapest global
+ * capability in this project.
+ *
+ * Docs: https://openfoodfacts.github.io/openfoodfacts-server/api/
+ * Verified live: 2026-08-03.
+ */
+
+import axios from 'axios';
+import type { Product } from '../providers/types';
+
+const PRODUCT_API = 'https://world.openfoodfacts.org/api/v2';
+const SEARCH_API = 'https://search.openfoodfacts.org';
+
+/**
+ * Open Food Facts asks that clients identify themselves so they can contact you
+ * if a client misbehaves, rather than silently blocking it. Be a good citizen.
+ */
+const USER_AGENT = 'open-supermarkets (+https://github.com/abracadabra50/open-supermarkets)';
+
+const FIELDS = [
+  'code',
+  'product_name',
+  'brands',
+  'quantity',
+  'nutriscore_grade',
+  'nova_group',
+  'ecoscore_grade',
+  'allergens_tags',
+  'ingredients_text',
+  'labels_tags',
+].join(',');
+
+export interface Nutrition {
+  barcode?: string;
+  /** Nutri-Score a–e. */
+  nutriscore?: string;
+  /** NOVA processing group 1–4; 4 is ultra-processed. */
+  nova?: number;
+  /** Green-Score / Eco-Score a–e, where present. */
+  ecoscore?: string;
+  /** Normalised, prefix stripped: ["milk", "nuts"] rather than ["en:milk"]. */
+  allergens: string[];
+  ingredients?: string;
+  labels: string[];
+  brand?: string;
+  /**
+   * How the product was matched. `barcode` is exact; `name` is a best guess
+   * from a text search and should be shown as such.
+   */
+  match: 'barcode' | 'name';
+  source: 'openfoodfacts';
+}
+
+/** `en:milk` → `milk`. Language prefixes are noise for display. */
+function stripTag(tag: string): string {
+  const i = tag.indexOf(':');
+  return (i === -1 ? tag : tag.slice(i + 1)).replace(/-/g, ' ');
+}
+
+/**
+ * Open Food Facts is crowd-sourced, so plenty of records exist with a name and
+ * nothing else — verified against AH's Dutch milk, which resolves to a real
+ * barcode carrying no Nutri-Score, no NOVA and no allergens.
+ *
+ * Attaching such a record would look like a successful match while telling the
+ * caller nothing, so an empty record is treated as no match at all.
+ */
+function hasSignal(n: Nutrition): boolean {
+  return Boolean(
+    n.nutriscore || n.nova || n.ecoscore || n.allergens.length || n.ingredients
+  );
+}
+
+function toNutrition(p: any, match: 'barcode' | 'name'): Nutrition | null {
+  if (!p) return null;
+  const n: Nutrition = {
+    barcode: p.code,
+    nutriscore: p.nutriscore_grade && p.nutriscore_grade !== 'unknown'
+      ? p.nutriscore_grade
+      : undefined,
+    nova: typeof p.nova_group === 'number' ? p.nova_group : undefined,
+    ecoscore: p.ecoscore_grade && p.ecoscore_grade !== 'unknown'
+      ? p.ecoscore_grade
+      : undefined,
+    allergens: Array.isArray(p.allergens_tags) ? p.allergens_tags.map(stripTag) : [],
+    ingredients: p.ingredients_text || undefined,
+    labels: Array.isArray(p.labels_tags) ? p.labels_tags.map(stripTag) : [],
+    brand: p.brands || undefined,
+    match,
+    source: 'openfoodfacts',
+  };
+  return hasSignal(n) ? n : null;
+}
+
+/** Exact lookup by barcode. Cheap and accurate — prefer this when you have one. */
+export async function byBarcode(barcode: string): Promise<Nutrition | null> {
+  try {
+    const { data } = await axios.get(`${PRODUCT_API}/product/${encodeURIComponent(barcode)}.json`, {
+      params: { fields: FIELDS },
+      headers: { 'User-Agent': USER_AGENT },
+      timeout: 10_000,
+    });
+    return data?.status === 1 ? toNutrition(data.product, 'barcode') : null;
+  } catch {
+    // Enrichment is strictly additive. It must never fail a search.
+    return null;
+  }
+}
+
+/** Words too common in product names to count as evidence of a match. */
+const STOPWORDS = new Set([
+  'the', 'and', 'with', 'de', 'het', 'een', 'pack', 'stuks', 'value',
+  'organic', 'bio', 'biologisch', 'fresh', 'free', 'range', 'g', 'kg', 'ml', 'l',
+]);
+
+function tokens(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length > 2 && !STOPWORDS.has(t))
+  );
+}
+
+/**
+ * Fraction of the query's meaningful words present in the candidate's name.
+ *
+ * This guard exists because a text search always returns *something*. Searching
+ * a Dutch milk returned an unrelated product that happened to carry a full
+ * allergen record — attaching that would have been actively dangerous, not
+ * merely unhelpful. Wrong allergen data is worse than no allergen data.
+ */
+function similarity(query: string, candidate: string): number {
+  const q = tokens(query);
+  const c = tokens(candidate);
+  if (q.size === 0 || c.size === 0) return 0;
+  let hits = 0;
+  for (const t of q) if (c.has(t)) hits++;
+  return hits / q.size;
+}
+
+/** Minimum overlap before we believe a name match. Deliberately strict. */
+const MIN_SIMILARITY = 0.6;
+
+/**
+ * Fuzzy lookup by product name, for the common case where a provider exposes no
+ * barcode. Best-effort and guarded: a hit whose name does not substantially
+ * overlap the query is discarded rather than returned as a guess.
+ *
+ * Never rely on a `match: 'name'` result for allergen decisions.
+ */
+export async function byName(name: string): Promise<Nutrition | null> {
+  try {
+    const { data } = await axios.get(`${SEARCH_API}/search`, {
+      params: { q: name, page_size: 1 },
+      headers: { 'User-Agent': USER_AGENT },
+      timeout: 10_000,
+    });
+    const hit = data?.hits?.[0];
+    if (!hit) return null;
+
+    // A search always returns something. Only believe it if the name agrees.
+    if (similarity(name, hit.product_name ?? '') < MIN_SIMILARITY) return null;
+
+    // search-a-licious returns a trimmed field set, so re-fetch the full record
+    // by barcode when we have one. The match stays labelled 'name'.
+    if (hit.code) {
+      const full = await byBarcode(hit.code);
+      if (full) return { ...full, match: 'name' };
+    }
+    return toNutrition(hit, 'name');
+  } catch {
+    return null;
+  }
+}
+
+export interface EnrichedProduct extends Product {
+  nutrition?: Nutrition;
+}
+
+/**
+ * Enrich a batch of products, bounded in concurrency so we stay a polite client
+ * of a donation-funded nonprofit. Never throws: a product that cannot be matched
+ * comes back unchanged.
+ */
+export async function enrich(
+  products: Product[],
+  opts: { concurrency?: number } = {}
+): Promise<EnrichedProduct[]> {
+  const concurrency = opts.concurrency ?? 4;
+  const out: EnrichedProduct[] = [...products];
+
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (cursor < out.length) {
+      const i = cursor++;
+      const p = out[i];
+      const nutrition = /^\d{8,14}$/.test(p.product_uid)
+        ? await byBarcode(p.product_uid)
+        : await byName(p.name);
+      if (nutrition) out[i] = { ...p, nutrition };
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, out.length) }, () => worker())
+  );
+  return out;
+}
