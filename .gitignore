@@ -38,3 +38,6 @@ test-*.js
 discover-*.js
 extract-*.js
 network-*.js
+
+# Personal context — never for the PR, never pushed anywhere
+CLAUDE.md
