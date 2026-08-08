@@ -15,6 +15,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ProviderFactory, ProviderName, compareProduct } from './providers/index.js';
 import type { FullGroceryProvider } from './providers/types.js';
+import { money } from './format.js';
 import * as fs from 'fs';
 import * as os from 'os';
 
@@ -347,7 +348,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         );
         const lines = products.map((p, i) => {
           const best = p.product_uid === cheapest.product_uid ? ' [BEST PRICE]' : '';
-          return `  ${i + 1}. ${p.name} - £${p.retail_price.price.toFixed(2)}${best} (ID: ${p.product_uid})`;
+          return `  ${i + 1}. ${p.name} - ${money(p.retail_price.price, p.currency)}${best} (ID: ${p.product_uid})`;
         });
         return `${provider.toUpperCase()}:\n${lines.join('\n')}`;
       });
@@ -370,7 +371,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const formatted = limited.map((p, i) => {
         const stock = p.in_stock ? 'In stock' : 'Out of stock';
         const unitPrice = p.unit_price ? ` (${p.unit_price.price}/${p.unit_price.measure})` : '';
-        return `${i + 1}. ${p.name}\n   £${p.retail_price.price.toFixed(2)}${unitPrice} | ${stock} | ID: ${p.product_uid}`;
+        return `${i + 1}. ${p.name}\n   ${money(p.retail_price.price, p.currency)}${unitPrice} | ${stock} | ID: ${p.product_uid}`;
       }).join('\n\n');
 
       return textResult(
@@ -396,7 +397,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const formatted = products.map((p: any, i: number) => {
         const stock = p.in_stock ? 'In stock' : 'Out of stock';
         const unitPrice = p.unit_price ? ` (${p.unit_price.price}/${p.unit_price.measure})` : '';
-        return `${i + 1}. ${p.name}\n   £${p.retail_price.price.toFixed(2)}${unitPrice} | ${stock} | ID: ${p.product_uid}`;
+        return `${i + 1}. ${p.name}\n   ${money(p.retail_price.price, p.currency)}${unitPrice} | ${stock} | ID: ${p.product_uid}`;
       }).join('\n\n');
 
       return textResult(
@@ -422,7 +423,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const formatted = products.map((p: any, i: number) => {
         const stock = p.in_stock ? 'In stock' : 'Out of stock';
         const unitPrice = p.unit_price ? ` (${p.unit_price.price}/${p.unit_price.measure})` : '';
-        return `${i + 1}. ${p.name}\n   £${p.retail_price.price.toFixed(2)}${unitPrice} | ${stock} | ID: ${p.product_uid}`;
+        return `${i + 1}. ${p.name}\n   ${money(p.retail_price.price, p.currency)}${unitPrice} | ${stock} | ID: ${p.product_uid}`;
       }).join('\n\n');
 
       return textResult(
@@ -463,7 +464,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const formatted = products.map((p: any, i: number) => {
         const stock = p.in_stock ? 'In stock' : 'Out of stock';
         const unitPrice = p.unit_price ? ` (${p.unit_price.price}/${p.unit_price.measure})` : '';
-        return `${i + 1}. ${p.name}\n   £${p.retail_price.price.toFixed(2)}${unitPrice} | ${stock} | ID: ${p.product_uid}`;
+        return `${i + 1}. ${p.name}\n   ${money(p.retail_price.price, p.currency)}${unitPrice} | ${stock} | ID: ${p.product_uid}`;
       }).join('\n\n');
 
       return textResult(
@@ -499,11 +500,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       const formatted = basket.items.map((item, i) =>
-        `${i + 1}. ${item.quantity}x ${item.name}\n   £${item.unit_price.toFixed(2)} each = £${item.total_price.toFixed(2)} | ID: ${item.product_uid}`
+        `${i + 1}. ${item.quantity}x ${item.name}\n   ${money(item.unit_price)} each = ${money(item.total_price)} | ID: ${item.product_uid}`
       ).join('\n\n');
 
       return textResult(
-        `${providerName.toUpperCase()} Basket - £${basket.total_cost.toFixed(2)} (${basket.items.length} items):\n\n${formatted}`
+        `${providerName.toUpperCase()} Basket - ${money(basket.total_cost)} (${basket.items.length} items):\n\n${formatted}`
       );
     }
 
@@ -554,7 +555,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       const formatted = slots.map((slot, i) => {
         const avail = slot.available ? 'Available' : 'Unavailable';
-        return `${i + 1}. ${slot.date} ${slot.start_time}-${slot.end_time}\n   £${slot.price.toFixed(2)} | ${avail} | ID: ${slot.slot_id}`;
+        return `${i + 1}. ${slot.date} ${slot.start_time}-${slot.end_time}\n   ${money(slot.price)} | ${avail} | ID: ${slot.slot_id}`;
       }).join('\n\n');
 
       return textResult(`${providerName.toUpperCase()} Delivery Slots:\n\n${formatted}`);
@@ -578,12 +579,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       if (dry_run) {
         return textResult(
-          `Checkout preview for ${providerName}:\nTotal: £${order.total}\nStatus: ${order.status}\nItems: ${order.items.length}\n\nUse dry_run=false to place the order.`
+          `Checkout preview for ${providerName}:\nTotal: ${money(order.total)}\nStatus: ${order.status}\nItems: ${order.items.length}\n\nUse dry_run=false to place the order.`
         );
       }
 
       return textResult(
-        `Order placed at ${providerName}!\nOrder ID: ${order.order_id}\nTotal: £${order.total}\nStatus: ${order.status}`
+        `Order placed at ${providerName}!\nOrder ID: ${order.order_id}\nTotal: ${money(order.total)}\nStatus: ${order.status}`
       );
     }
 
@@ -603,7 +604,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const delivery = order.delivery_slot
           ? `\n   Delivery: ${order.delivery_slot.date} ${order.delivery_slot.start_time}-${order.delivery_slot.end_time}`
           : '';
-        return `${i + 1}. Order #${order.order_id}\n   Total: £${order.total.toFixed(2)} | Status: ${order.status}${delivery}`;
+        return `${i + 1}. Order #${order.order_id}\n   Total: ${money(order.total)} | Status: ${order.status}${delivery}`;
       }).join('\n\n');
 
       return textResult(

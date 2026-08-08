@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { money } from './format';
 import { SainsburysAPI } from './api/client';
 import { login, loadSession, getCookieString, clearSession } from './auth/login';
 import { addCommand, removeCommand, updateCommand, clearCommand } from './commands/basket';
@@ -74,7 +75,7 @@ program
           data.products.forEach((product: any, idx: number) => {
             console.log(`${idx + 1}. ${product.name}`);
             if (product.retail_price?.price) {
-              console.log(`   £${product.retail_price.price} | ID: ${product.product_uid}`);
+              console.log(`   ${money(product.retail_price.price, product.currency)} | ID: ${product.product_uid}`);
             }
           });
         } else {
@@ -101,7 +102,7 @@ program
       } else {
         console.log(`\n${data.name || 'Product'}`);
         if (data.retail_price?.price) {
-          console.log(`Price: £${data.retail_price.price}`);
+          console.log(`Price: ${money(data.retail_price.price, data.currency)}`);
         }
         console.log(`ID: ${id}`);
       }
@@ -184,12 +185,12 @@ program
           const trolley = data.trolley.trolley_details;
           console.log(`\n🛒 Your Basket\n`);
           console.log(`Items: ${trolley.total_quantity || 0}`);
-          console.log(`Subtotal: £${trolley.total_cost || 0}\n`);
+          console.log(`Subtotal: ${money(trolley.total_cost || 0)}\n`);
           
           if (trolley.products && trolley.products.length > 0) {
             trolley.products.forEach((item: any) => {
               console.log(`• ${item.quantity}x ${item.name}`);
-              console.log(`  £${item.unit_price} each | Item ID: ${item.item_id || item.id}`);
+              console.log(`  ${money(item.unit_price)} each | Item ID: ${item.item_id || item.id}`);
             });
           }
         } else {

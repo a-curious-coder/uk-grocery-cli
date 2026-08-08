@@ -10,6 +10,7 @@ import {
   createProvider,
 } from './providers/registry';
 import type { Capability } from './providers/types';
+import { money } from './format';
 // Tesco is imported as a *type only* — a value import here would pull Playwright
 // into every `groc` invocation, including `groc providers` in another country.
 import type { TescoProvider } from './providers/tesco/index';
@@ -51,20 +52,6 @@ function getProvider(options: any) {
   return ProviderFactory.create(providerName as ProviderName);
 }
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  GBP: '£', EUR: '€', USD: '$', CAD: 'CA$', AUD: 'A$', PLN: 'zł',
-};
-
-/** Symbol for a currency, falling back to the code itself for anything exotic. */
-function sym(currency?: string): string {
-  const code = currency ?? 'GBP';
-  return CURRENCY_SYMBOLS[code] ?? `${code} `;
-}
-
-/** Two decimals, so 5.1 prints as 5.10 like a price rather than a float. */
-function money(amount: number, currency?: string): string {
-  return `${sym(currency)}${Number(amount).toFixed(2)}`;
-}
 
 function printProducts(products: any[]) {
   products.forEach((p, i) => {
@@ -455,11 +442,11 @@ program
         console.log(JSON.stringify(basket, null, 2));
       } else {
         console.log(`\n🛒 ${provider.name.toUpperCase()} Basket\n`);
-        console.log(`Total: £${basket.total_cost.toFixed(2)} (${basket.total_quantity} items)\n`);
+        console.log(`Total: ${money(basket.total_cost, (basket as any).currency)} (${basket.total_quantity} items)\n`);
         
         basket.items.forEach((item, i) => {
           console.log(`${i + 1}. ${item.quantity}x ${item.name}`);
-          console.log(`   £${item.unit_price} each = £${item.total_price}`);
+          console.log(`   ${money(item.unit_price, (basket as any).currency)} each = ${money(item.total_price, (basket as any).currency)}`);
           console.log(`   ID: ${item.item_id}\n`);
         });
       }
@@ -517,7 +504,7 @@ program
         slots.forEach((slot, i) => {
           const available = slot.available ? '✅' : '❌';
           console.log(`${i + 1}. ${slot.date} ${slot.start_time}-${slot.end_time}`);
-          console.log(`   £${slot.price} ${available}`);
+          console.log(`   ${money(slot.price)} ${available}`);
           console.log(`   ID: ${slot.slot_id}\n`);
         });
       }
@@ -545,23 +532,31 @@ program
 // Checkout
 program
   .command('checkout')
-  .description('Complete order and checkout')
-  .option('--dry-run', 'Preview without placing order')
+  .description('Preview the order. Placing it for real requires --confirm.')
+  // Dry run is the DEFAULT, and placing an order needs an explicit --confirm.
+  //
+  // This was the other way round until v3: a bare `checkout` spent real money and
+  // `--dry-run` was opt-in. The MCP tool has always defaulted dry_run=true, which
+  // meant the agent had the safe default and the human did not — exactly backwards.
+  // A command that spends money should require you to say so.
+  .option('--confirm', 'Actually place the order. Spends real money.')
+  .option('--dry-run', 'Preview only (the default; kept for explicitness)')
   .action(async (options, cmd) => {
     try {
       const provider = getProvider(cmd.optsWithGlobals());
-      
-      if (options.dryRun) {
-        console.log(`🔍 Dry run - previewing ${provider.name} checkout flow...\n`);
+      const placing = options.confirm === true;
+
+      if (!placing) {
+        console.log(`🔍 Previewing ${provider.name} checkout — nothing will be ordered.\n`);
       }
-      
-      const order = await provider.checkout(options.dryRun || false);
-      
-      if (options.dryRun) {
+
+      const order = await provider.checkout(!placing);
+
+      if (!placing) {
         console.log(`\n📋 Checkout Preview:`);
-        console.log(`Total: £${order.total}`);
+        console.log(`Total: ${money(order.total)}`);
         console.log(`Status: ${order.status}`);
-        console.log('\n💡 Use without --dry-run to place order');
+        console.log(`\n💡 This placed NO order. Re-run with --confirm to buy.`);
       } else {
         console.log(`✅ Order placed with ${provider.name}!`);
         console.log(JSON.stringify(order, null, 2));
@@ -603,7 +598,7 @@ program
       displayOrders.forEach((order, i) => {
         console.log(`${i + 1}. Order #${order.order_id}`);
         console.log(`   Status: ${order.status}`);
-        console.log(`   Total: £${order.total.toFixed(2)}`);
+        console.log(`   Total: ${money(order.total)}`);
         
         if (order.delivery_slot) {
           console.log(`   Delivery: ${order.delivery_slot.date} ${order.delivery_slot.start_time}-${order.delivery_slot.end_time}`);

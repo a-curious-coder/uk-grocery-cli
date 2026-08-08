@@ -21,9 +21,14 @@ function loadedProviderModules(): string[] {
 }
 
 let failures = 0;
-function check(name: string, fn: () => void) {
+function check(name: string, fn: () => void | Promise<void>) {
   try {
-    fn();
+    const r = fn();
+    if (r instanceof Promise) {
+      r.then(() => console.log(`  ✓ ${name}`))
+       .catch((err: any) => { failures++; console.error(`  ✗ ${name}\n    ${err.message}`); });
+      return;
+    }
     console.log(`  ✓ ${name}`);
   } catch (err: any) {
     failures++;
@@ -112,3 +117,58 @@ check('resolveCountry prefers the explicit argument', () => {
   console.log(failures === 0 ? '\nall passed' : `\n${failures} failed`);
   process.exit(failures === 0 ? 0 : 1);
 })();
+
+// ─────────────────────────────────────────────────────────────────────
+// Checkout must never place an order unless --confirm was passed.
+//
+// This is the one command that spends real money, and until v3 a bare
+// `checkout` did exactly that while --dry-run was opt-in. Asserting the
+// inversion here because a one-character regression is a real order.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\ncheckout safety');
+
+{
+  // Each case gets its OWN recorder. An earlier version shared one array across
+  // three concurrently-running async checks, so `calls.length = 0` in one wiped
+  // another's recording and the suite failed for a reason that had nothing to do
+  // with the code under test.
+  function harness() {
+    const calls: boolean[] = [];
+    const provider = {
+      name: 'fake',
+      async checkout(dryRun = false) {
+        calls.push(dryRun);
+        return { order_id: 'x', status: 'preview', total: 0, items: [] };
+      },
+    };
+    // Mirrors the CLI: placing = options.confirm === true
+    async function run(options: { confirm?: unknown }) {
+      const placing = options.confirm === true;
+      await provider.checkout(!placing);
+      return placing;
+    }
+    return { calls, run };
+  }
+
+  check('no flags → dry run (does NOT place an order)', async () => {
+    const { calls, run } = harness();
+    const placed = await run({});
+    assert.strictEqual(placed, false, 'a bare checkout must not place an order');
+    assert.deepStrictEqual(calls, [true], 'provider.checkout must receive dryRun=true');
+  });
+
+  check('--confirm → places the order', async () => {
+    const { calls, run } = harness();
+    const placed = await run({ confirm: true });
+    assert.strictEqual(placed, true);
+    assert.deepStrictEqual(calls, [false], 'provider.checkout must receive dryRun=false');
+  });
+
+  check('a truthy-but-not-true confirm still does NOT place', async () => {
+    const { calls, run } = harness();
+    // Guards against `--confirm=maybe` or a stray string arriving from an agent.
+    const placed = await run({ confirm: 'yes' });
+    assert.strictEqual(placed, false, 'only strict true may place an order');
+    assert.deepStrictEqual(calls, [true]);
+  });
+}

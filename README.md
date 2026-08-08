@@ -211,8 +211,9 @@ provider exposes one, and by name where it doesn't. Name matches are guarded by 
 similarity check and labelled `match: 'name'`, but a wrong match on an allergen is
 dangerous in a way a wrong price is not. If it matters medically, read the packet.
 
-**Checkout spends real money.** Every checkout path supports `--dry-run`. Use it
-first.
+**Checkout previews by default.** `supermarket checkout` shows you the order and
+places nothing. Spending real money requires `--confirm`, explicitly. The MCP tool
+behaves the same way (`dry_run` defaults to true).
 
 ---
 
