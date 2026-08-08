@@ -80,6 +80,30 @@ function recomputeProductStats(products: ProductStore, orderStore: OrderStore) {
   }
 }
 
+/**
+ * ponytail: pending/upcoming orders aren't returned by orderSearch under any
+ * status enum tried, including the order's own real status ("Pending") —
+ * that endpoint appears to only index completed orders, full stop. The one
+ * place the ID is visible is the server-rendered /orders/upcoming page, so
+ * scrape *only the order ID* from there — one small regex, minimal surface
+ * area — then hand it to the same getOrder() GraphQL call used for every
+ * other order, which returns full clean data (status, total, slot, priced
+ * items) regardless of order status. If Tesco changes this page's markup,
+ * this ID lookup silently returns nothing and pending orders just don't
+ * sync until the fix branch here gets updated — not a hard failure.
+ */
+async function scrapeUpcomingOrderIds(api: any): Promise<string[]> {
+  try {
+    const resp = await api.client.get('https://www.tesco.com/shop/en-GB/orders/upcoming', {
+      headers: { Accept: 'text/html' },
+    });
+    return [...(resp.data as string).matchAll(/data-testid="order-item" id="([\w-]+)"/g)].map(m => m[1]);
+  } catch (err: any) {
+    console.warn(`  ⚠️  Could not fetch upcoming-orders page: ${err.message}`);
+    return [];
+  }
+}
+
 async function main() {
   const provider = new TescoProvider();
   const api = provider.getAPI();
@@ -92,7 +116,12 @@ async function main() {
   console.log('Fetching order list...');
   const summary = await api.getOrders(1, 50); // Tesco caps history; 50 covers it
   const rawOrders: any[] = summary?.orders || [];
-  console.log(`Found ${rawOrders.length} orders. Fetching full line-item detail for each...`);
+
+  const knownOrderNos = new Set(rawOrders.map(o => o.orderNo || o.id));
+  const upcomingIds = (await scrapeUpcomingOrderIds(api)).filter(id => !knownOrderNos.has(id));
+  for (const id of upcomingIds) rawOrders.push({ orderNo: id }); // receipt supplies everything else
+
+  console.log(`Found ${rawOrders.length} orders (${upcomingIds.length} pending/upcoming). Fetching full line-item detail for each...`);
 
   const syncedOrders = [];
   for (const o of rawOrders) {
@@ -121,12 +150,16 @@ async function main() {
       };
     });
 
+    // The receipt query always requests status/createdDateTime/totalPrice/slot
+    // itself, so prefer it over the summary object — which doesn't exist at
+    // all for orders only discovered via scrapeUpcomingOrderIds().
+    const slot = receipt?.slot ?? o.slot;
     syncedOrders.push({
       order_id: orderNo,
-      status: o.status,
-      date: o.createdDateTime,
-      total: o.totalPrice,
-      delivery: o.slot ? { start: o.slot.start, end: o.slot.end, charge: o.slot.charge } : null,
+      status: receipt?.status ?? o.status,
+      date: receipt?.createdDateTime ?? o.createdDateTime,
+      total: receipt?.totalPrice ?? o.totalPrice,
+      delivery: slot ? { start: slot.start, end: slot.end, charge: slot.charge } : null,
       items,
     });
 
