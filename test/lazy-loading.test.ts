@@ -172,3 +172,67 @@ console.log('\ncheckout safety');
     assert.deepStrictEqual(calls, [true]);
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Error translation.
+//
+// Providers are reverse-engineered and most methods have no try/catch, so the
+// raw failure is usually "Request failed with status code 401" — which sends
+// people to the issue tracker for an expired login. Translated once at the
+// boundary; these assertions keep it honest.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\nerror translation');
+
+{
+  const { explain } = require('../src/errors');
+  const http = (status: number) => ({
+    response: { status },
+    message: `Request failed with status code ${status}`,
+  });
+
+  check('401 names the provider and the fix', () => {
+    const m = explain(http(401), { provider: 'ocado', action: 'get slots' });
+    assert.match(m, /Not authenticated with ocado/);
+    assert.match(m, /supermarket login --provider ocado/);
+    assert.doesNotMatch(m, /Request failed with status code/);
+  });
+
+  check('cookie-auth providers are told to import a session, not to log in', () => {
+    const m = explain(http(403), { provider: 'tesco' });
+    assert.match(m, /import-session/);
+    assert.doesNotMatch(m, /supermarket login/);
+  });
+
+  check('429 is described as throttling, not breakage', () => {
+    const m = explain(http(429), { provider: 'ah' });
+    assert.match(m, /rate limiting/);
+    assert.match(m, /not a broken integration/);
+  });
+
+  check('5xx is called transient', () => {
+    assert.match(explain(http(503), { provider: 'tesco' }), /server trouble.*retry/s);
+  });
+
+  check('network failures are distinguished from HTTP ones', () => {
+    assert.match(
+      explain({ code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND' }, { provider: 'jumbo' }),
+      /Could not reach jumbo/
+    );
+  });
+
+  check('bot protection is identified as such', () => {
+    assert.match(
+      explain({ message: 'cf-mitigated: challenge returned by cloudflare' }, { provider: 'doordash' }),
+      /bot-protection challenge/
+    );
+  });
+
+  // The most important one: a provider that has already said something useful
+  // must not have it replaced by a generic message.
+  check("a provider's own explanation is never overwritten", () => {
+    const considered =
+      'Ocado slot booking and checkout have not been reverse-engineered ' +
+      '(capturing them requires performing a real booking).';
+    assert.strictEqual(explain({ message: considered }, { provider: 'ocado' }), considered);
+  });
+}

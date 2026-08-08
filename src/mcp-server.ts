@@ -16,6 +16,7 @@ import {
 import { ProviderFactory, ProviderName, compareProduct } from './providers/index.js';
 import type { FullGroceryProvider } from './providers/types.js';
 import { money } from './format.js';
+import { explain } from './errors.js';
 import * as fs from 'fs';
 import * as os from 'os';
 
@@ -647,7 +648,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return textResult(`Unknown tool: ${name}`, true);
 
   } catch (error: any) {
-    return textResult(`Error: ${error.message}`, true);
+    // Agents act on error text, so a bare "status code 401" makes them retry
+    // forever instead of telling the user to log in.
+    return textResult(`Error: ${explain(error, { provider: providerName })}`, true);
   }
 });
 

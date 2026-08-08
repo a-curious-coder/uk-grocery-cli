@@ -11,6 +11,7 @@ import {
 } from './providers/registry';
 import type { Capability } from './providers/types';
 import { money } from './format';
+import { explain } from './errors';
 // Tesco is imported as a *type only* — a value import here would pull Playwright
 // into every `groc` invocation, including `groc providers` in another country.
 import type { TescoProvider } from './providers/tesco/index';
@@ -88,7 +89,7 @@ program
       await provider.login(email, password);
       console.log(`✅ Logged in to ${provider.name}`);
     } catch (error: any) {
-      console.error('❌ Login failed:', error.message);
+      console.error('❌ Login failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'login' }));
       process.exit(1);
     }
   });
@@ -103,7 +104,7 @@ program
       await provider.logout();
       console.log(`✅ Logged out from ${provider.name}`);
     } catch (error: any) {
-      console.error('❌ Logout failed:', error.message);
+      console.error('❌ Logout failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'logout' }));
       process.exit(1);
     }
   });
@@ -150,7 +151,7 @@ program
       }
       console.log();
     } catch (error: any) {
-      console.error('❌ Status check failed:', error.message);
+      console.error('❌ Status check failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'status check' }));
       process.exit(1);
     }
   });
@@ -210,7 +211,7 @@ program
         console.log();
       }
     } catch (error: any) {
-      console.error('❌ Search failed:', error.message);
+      console.error('❌ Search failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'search' }));
       process.exit(1);
     }
   });
@@ -237,7 +238,7 @@ program
         printProducts(products);
       }
     } catch (error: any) {
-      console.error('❌ Failed to get favourites:', error.message);
+      console.error('❌ Failed to get favourites:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'get favourites' }));
       process.exit(1);
     }
   });
@@ -260,7 +261,7 @@ program
         console.log(JSON.stringify(cats, null, 2));
       }
     } catch (error: any) {
-      console.error('❌ Failed to list categories:', error.message);
+      console.error('❌ Failed to list categories:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'list categories' }));
       process.exit(1);
     }
   });
@@ -285,7 +286,7 @@ program
         printProducts(products);
       }
     } catch (error: any) {
-      console.error('❌ Browse failed:', error.message);
+      console.error('❌ Browse failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'browse' }));
       process.exit(1);
     }
   });
@@ -319,7 +320,7 @@ program
         printProducts(cheapest);
       }
     } catch (error: any) {
-      console.error('❌ Deals failed:', error.message);
+      console.error('❌ Deals failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'deals' }));
       process.exit(1);
     }
   });
@@ -345,7 +346,7 @@ program
         regulars.forEach((r: any) => console.log(JSON.stringify(r)));
       }
     } catch (error: any) {
-      console.error('❌ Regulars failed:', error.message);
+      console.error('❌ Regulars failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'regulars' }));
       process.exit(1);
     }
   });
@@ -372,7 +373,7 @@ program
         printProducts(products);
       }
     } catch (error: any) {
-      console.error('❌ Favourite search failed:', error.message);
+      console.error('❌ Favourite search failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'favourite search' }));
       process.exit(1);
     }
   });
@@ -423,7 +424,7 @@ program
         console.log();
       }
     } catch (error: any) {
-      console.error('❌ Compare failed:', error.message);
+      console.error('❌ Compare failed:', explain(error, { action: 'compare across providers' }));
       process.exit(1);
     }
   });
@@ -451,7 +452,7 @@ program
         });
       }
     } catch (error: any) {
-      console.error('❌ Failed to get basket:', error.message);
+      console.error('❌ Failed to get basket:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'get basket' }));
       process.exit(1);
     }
   });
@@ -467,7 +468,7 @@ program
       await provider.addToBasket(productId, parsePositiveInt(options.qty, 'qty'));
       console.log(`✅ Added to ${provider.name} basket`);
     } catch (error: any) {
-      console.error('❌ Failed to add to basket:', error.message);
+      console.error('❌ Failed to add to basket:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'add to basket' }));
       process.exit(1);
     }
   });
@@ -482,7 +483,7 @@ program
       await provider.removeFromBasket(itemId);
       console.log(`✅ Removed from ${provider.name} basket`);
     } catch (error: any) {
-      console.error('❌ Failed to remove from basket:', error.message);
+      console.error('❌ Failed to remove from basket:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'remove from basket' }));
       process.exit(1);
     }
   });
@@ -509,7 +510,7 @@ program
         });
       }
     } catch (error: any) {
-      console.error('❌ Failed to get slots:', error.message);
+      console.error('❌ Failed to get slots:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'get slots' }));
       process.exit(1);
     }
   });
@@ -524,7 +525,7 @@ program
       await provider.bookSlot(slotId);
       console.log(`✅ Slot booked with ${provider.name}`);
     } catch (error: any) {
-      console.error('❌ Failed to book slot:', error.message);
+      console.error('❌ Failed to book slot:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'book slot' }));
       process.exit(1);
     }
   });
@@ -562,7 +563,7 @@ program
         console.log(JSON.stringify(order, null, 2));
       }
     } catch (error: any) {
-      console.error('❌ Checkout failed:', error.message);
+      console.error('❌ Checkout failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'checkout' }));
       process.exit(1);
     }
   });
@@ -615,7 +616,7 @@ program
         console.log(`Showing ${orderLimit} of ${orders.length} orders. Use --limit to see more.\n`);
       }
     } catch (error: any) {
-      console.error('❌ Failed to get orders:', error.message);
+      console.error('❌ Failed to get orders:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'get orders' }));
       console.log('\nNote: Order history may require additional permissions.');
       console.log('Try logging in again or check the website.\n');
       process.exit(1);
@@ -632,7 +633,7 @@ program
       await provider.updateBasketItem(itemId, parseInt(quantity));
       console.log(`✅ Updated item ${itemId} to qty ${quantity}`);
     } catch (error: any) {
-      console.error('❌ Failed to update basket item:', error.message);
+      console.error('❌ Failed to update basket item:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'update basket item' }));
       process.exit(1);
     }
   });
@@ -652,7 +653,7 @@ program
       await provider.clearBasket();
       console.log(`✅ Basket cleared`);
     } catch (error: any) {
-      console.error('❌ Failed to clear basket:', error.message);
+      console.error('❌ Failed to clear basket:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'clear basket' }));
       process.exit(1);
     }
   });
@@ -737,7 +738,7 @@ program
       const { discover } = await import('./providers/tesco/discover');
       await discover();
     } catch (error: any) {
-      console.error('❌ Discovery failed:', error.message);
+      console.error('❌ Discovery failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'discovery' }));
       process.exit(1);
     }
   });
@@ -761,7 +762,7 @@ program
         process.exit(1);
       }
     } catch (error: any) {
-      console.error('❌ Session import failed:', error.message);
+      console.error('❌ Session import failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'session import' }));
       process.exit(1);
     }
   });
@@ -803,7 +804,7 @@ program
       printStaples(staples, options.json);
 
     } catch (error: any) {
-      console.error('❌ Staples command failed:', error.message);
+      console.error('❌ Staples command failed:', explain(error, { provider: cmd?.optsWithGlobals?.().provider ?? program.opts().provider, action: 'staples command' }));
       process.exit(1);
     }
   });
