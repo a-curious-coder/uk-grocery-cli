@@ -393,15 +393,17 @@ program
 // Compare across providers
 program
   .command('compare <query>')
-  .description('Compare product across all supermarkets')
+  .description('Compare a product across every provider in a country')
   .option('-l, --limit <number>', 'Results per provider', '5')
+  .option('-c, --country <code>', 'Country to compare in (ISO 3166-1 alpha-2)')
   .option('--json', 'Output as JSON')
   .action(async (query, options) => {
     try {
-      console.log(`\n🔍 Comparing "${query}" across supermarkets...\n`);
-      
+      const country = resolveCountry(options.country);
+      console.log(`\n🔍 Comparing "${query}" across ${country} supermarkets...\n`);
+
       const limit = parsePositiveInt(options.limit, 'limit');
-      const results = await compareProduct(query, undefined, limit);
+      const results = await compareProduct(query, undefined, limit, country);
       
       if (options.json) {
         console.log(JSON.stringify(results, null, 2));
@@ -429,7 +431,7 @@ program
         products.slice(0, 5).forEach((p, i) => {
           const isCheapest = p.product_uid === cheapest.product_uid ? ' 💰 BEST' : '';
           console.log(`${i + 1}. ${p.name}`);
-          console.log(`   £${p.retail_price.price}${isCheapest}`);
+          console.log(`   ${money(p.retail_price.price, p.currency)}${isCheapest}`);
         });
         console.log();
       }

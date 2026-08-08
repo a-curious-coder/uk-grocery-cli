@@ -133,12 +133,24 @@ function tokens(s: string): Set<string> {
 }
 
 /**
- * Fraction of the query's meaningful words present in the candidate's name.
+ * Similarity between a retailer's product name and an Open Food Facts record,
+ * as a Sørensen–Dice coefficient over meaningful tokens.
  *
- * This guard exists because a text search always returns *something*. Searching
- * a Dutch milk returned an unrelated product that happened to carry a full
- * allergen record — attaching that would have been actively dangerous, not
+ * This guard exists because a text search always returns *something*. An early
+ * version matched an unrelated product that happened to carry a full allergen
+ * record, and attaching that would have been actively dangerous rather than
  * merely unhelpful. Wrong allergen data is worse than no allergen data.
+ *
+ * Dice rather than one-directional overlap, because the first attempt measured
+ * hits ÷ query tokens and that is biased against correct matches. Retail names
+ * carry brand and pack noise the canonical record does not:
+ *
+ *   "Tesco British Semi Skimmed Milk 1.13L, 2 Pints"  (7 tokens)
+ *   "Semi Skimmed Milk 2 pints"                        (4 tokens, correct match)
+ *
+ * One-directional scoring gives 4/7 = 0.57 and rejects it. Dice gives
+ * 2×4/(7+4) = 0.73 and accepts. Symmetry is the point: a genuinely unrelated
+ * pair scores low in both directions and is still rejected.
  */
 function similarity(query: string, candidate: string): number {
   const q = tokens(query);
@@ -146,7 +158,7 @@ function similarity(query: string, candidate: string): number {
   if (q.size === 0 || c.size === 0) return 0;
   let hits = 0;
   for (const t of q) if (c.has(t)) hits++;
-  return hits / q.size;
+  return (2 * hits) / (q.size + c.size);
 }
 
 /** Minimum overlap before we believe a name match. Deliberately strict. */
