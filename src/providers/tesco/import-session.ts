@@ -76,3 +76,64 @@ export function importSession(filePath: string): void {
   saveSession(session);
   console.log(`✅ Imported ${validCookies.length} cookies — Tesco session ready until ${session.expiresAt}`);
 }
+
+/**
+ * Import from a raw `Cookie:` request header.
+ *
+ * Added because exporting cookies via a browser extension turned out to be the
+ * single worst step in onboarding — extension UIs differ, some have no export at
+ * all, and the one thing everyone can reliably do is copy a request header out
+ * of DevTools.
+ *
+ * It is also strictly more complete than `document.cookie`, which omits HttpOnly
+ * cookies — and Tesco's session cookies are HttpOnly, so the console trick that
+ * looks like it should work silently produces a useless session.
+ *
+ *   DevTools → Network → any tesco.com request → Headers → Request Headers
+ *   → right-click the `Cookie` value → Copy value
+ */
+export function importSessionFromHeader(header: string): void {
+  const cleaned = header
+    .trim()
+    .replace(/^Cookie:\s*/i, '')   // tolerate the header name being copied too
+    .replace(/^["']|["']$/g, '');   // and surrounding quotes
+
+  const cookies = cleaned
+    .split(';')
+    .map(pair => pair.trim())
+    .filter(Boolean)
+    .map(pair => {
+      const eq = pair.indexOf('=');
+      if (eq === -1) return null;
+      return {
+        name: pair.slice(0, eq).trim(),
+        // Values legitimately contain '=', so only split on the first one.
+        value: pair.slice(eq + 1).trim(),
+        domain: '.tesco.com',
+        path: '/',
+        // A request header carries no expiry, so fall back to the default TTL.
+        expires: -1,
+        httpOnly: false,
+        secure: true,
+        sameSite: 'Lax' as const,
+      };
+    })
+    .filter((c): c is NonNullable<typeof c> => c !== null && !!c.name && !!c.value);
+
+  if (cookies.length === 0) {
+    throw new Error(
+      'No cookies parsed from that header.\n' +
+      'Expected something like: name=value; name2=value2; ...\n' +
+      'In DevTools → Network, pick a tesco.com request, then Request Headers → Cookie.'
+    );
+  }
+
+  const session: TescoSession = {
+    cookies,
+    expiresAt: inferSessionExpiry(cookies),
+    lastLogin: new Date().toISOString(),
+  };
+
+  saveSession(session);
+  console.log(`✅ Imported ${cookies.length} cookies from header — Tesco session ready until ${session.expiresAt}`);
+}

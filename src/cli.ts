@@ -746,11 +746,36 @@ program
 // Tesco: import session from Chrome cookie export
 program
   .command('import-session')
-  .description('Tesco/Ocado — import cookies exported from a real browser as a session fallback')
-  .requiredOption('--file <path>', 'Path to cookies JSON file (Chrome DevTools, Cookie-Editor, or Playwright storage_state)')
+  .description('Tesco/Ocado — import a browser session (cookie file, or a raw Cookie header)')
+  .option('--file <path>', 'Cookies JSON (Chrome DevTools, Cookie-Editor, or Playwright storage_state)')
+  .option('--header <cookie>', 'Raw Cookie request header, copied from DevTools → Network')
+  .option('--stdin', 'Read a raw Cookie header from stdin (avoids it landing in shell history)')
   .action(async (options, cmd) => {
     const providerName = cmd.optsWithGlobals().provider;
     try {
+      // --header/--stdin exist because exporting a cookie FILE is the worst step in
+      // onboarding: extension UIs differ and some have no export at all. Copying a
+      // request header out of DevTools is the one route that always works, and unlike
+      // document.cookie it includes HttpOnly cookies — which is all of the ones that
+      // matter here.
+      if (options.header || options.stdin) {
+        if (providerName !== 'tesco') {
+          console.error('❌ --header is currently Tesco only.');
+          process.exit(1);
+        }
+        const header = options.stdin
+          ? require('fs').readFileSync(0, 'utf-8')
+          : options.header;
+        const { importSessionFromHeader } = await import('./providers/tesco/import-session');
+        importSessionFromHeader(header);
+        return;
+      }
+
+      if (!options.file) {
+        console.error('❌ Give me one of --file, --header or --stdin. See --help.');
+        process.exit(1);
+      }
+
       if (providerName === 'tesco') {
         const { importSession } = await import('./providers/tesco/import-session');
         importSession(options.file);
