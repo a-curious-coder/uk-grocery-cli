@@ -70,6 +70,17 @@ export const PROVIDERS: ProviderManifest[] = [
 
   // ── United States ────────────────────────────────────────────────────
   {
+    id: 'kroger',
+    label: 'Kroger',
+    country: 'US',
+    capabilities: ['search'],
+    auth: 'oauth',
+    tier: 'core',
+    maintainer: 'abracadabra50',
+    credit: 'Official Kroger Public Products API (developer.kroger.com)',
+    load: async () => (await import('./kroger')).KrogerProvider,
+  },
+  {
     id: 'instacart',
     label: 'Instacart (official API)',
     country: 'US',

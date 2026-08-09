@@ -792,6 +792,40 @@ program
     }
   });
 
+// Kroger: find a store id (prices are per-store, so you need one)
+program
+  .command('kroger-stores')
+  .description('Kroger only — find store IDs near a US ZIP code, for KROGER_LOCATION_ID')
+  .requiredOption('--zip <code>', 'US ZIP code, e.g. 90210')
+  .option('-l, --limit <number>', 'Max stores', '5')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      const { KrogerProvider } = await import('./providers/kroger');
+      const stores = await new KrogerProvider().findStores(
+        options.zip,
+        parsePositiveInt(options.limit, 'limit')
+      );
+      if (options.json) {
+        console.log(JSON.stringify({ stores }, null, 2));
+        return;
+      }
+      if (stores.length === 0) {
+        console.log(`\nNo Kroger-family stores near ${options.zip}.\n`);
+        return;
+      }
+      console.log(`\nKroger stores near ${options.zip}\n`);
+      for (const s of stores) {
+        console.log(`  ${s.locationId}  ${s.chain} — ${s.name}`);
+        console.log(`  ${' '.repeat(s.locationId.length)}  ${s.address}\n`);
+      }
+      console.log(`Set one as KROGER_LOCATION_ID to get prices for that store.\n`);
+    } catch (error: any) {
+      console.error('❌ Kroger store lookup failed:', explain(error, { provider: 'kroger', action: 'find stores' }));
+      process.exit(1);
+    }
+  });
+
 // Tesco: staples management
 program
   .command('staples')
