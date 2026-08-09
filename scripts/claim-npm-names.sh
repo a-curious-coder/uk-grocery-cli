@@ -19,10 +19,23 @@
 set -euo pipefail
 
 PUBLISH=false
-[[ "${1:-}" == "--publish" ]] && PUBLISH=true
+OTP=""
+for arg in "$@"; do
+  case "$arg" in
+    --publish) PUBLISH=true ;;
+    --otp=*)   OTP="${arg#--otp=}" ;;
+  esac
+done
+
+# npm requires 2FA to publish. Passing --otp through means one authenticator code
+# covers the whole run instead of npm prompting per package.
+npm_publish() {
+  if [[ -n "$OTP" ]]; then npm publish --access public --otp="$OTP" "$@"
+  else npm publish --access public "$@"; fi
+}
 
 PRIMARY="open-supermarkets"
-PRIMARY_VERSION="3.0.0-rc.0"
+PRIMARY_VERSION="3.0.0"
 DEFENSIVE=(open-supermarket supermarkets uk-grocery-cli)
 
 REPO="https://github.com/abracadabra50/open-supermarkets"
@@ -33,7 +46,7 @@ if [[ -z "$who" ]]; then
   exit 1
 fi
 echo "npm user: $who"
-$PUBLISH || echo "(dry run — pass --publish to actually publish)"
+$PUBLISH || echo "(dry run — pass --publish to actually publish; add --otp=123456 for 2FA)"
 echo
 
 is_free() {
@@ -42,10 +55,9 @@ is_free() {
 
 # ── primary ──────────────────────────────────────────────────────────────
 if is_free "$PRIMARY"; then
-  echo "→ $PRIMARY@$PRIMARY_VERSION  (prerelease, not tagged latest)"
+  echo "→ $PRIMARY@$PRIMARY_VERSION"
   if $PUBLISH; then
-    npm version "$PRIMARY_VERSION" --no-git-tag-version --allow-same-version >/dev/null
-    npm publish --tag rc --access public
+    npm_publish
     echo "  published"
   fi
 else
@@ -82,10 +94,10 @@ Placeholder. This name is reserved for [\`$PRIMARY\`]($REPO).
 npm install -g $PRIMARY
 \`\`\`
 MD
-  (cd "$tmp" && npm publish --access public)
+  (cd "$tmp" && npm_publish)
   rm -rf "$tmp"
   echo "  published"
 done
 
 echo
-echo "Done. Restore the working version with: npm version 3.0.0 --no-git-tag-version"
+echo "Done."
