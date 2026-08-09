@@ -68,6 +68,18 @@ export const PROVIDERS: ProviderManifest[] = [
     load: async () => (await import('./ah')).AlbertHeijnProvider,
   },
 
+  {
+    id: 'ah-be',
+    label: 'Albert Heijn België',
+    country: 'BE',
+    capabilities: ['search'],
+    auth: 'anonymous',
+    tier: 'core',
+    maintainer: 'abracadabra50',
+    credit: 'Same API as ah; storefront selected by the x-application header',
+    load: async () => (await import('./ah')).AlbertHeijnBEProvider,
+  },
+
   // ── United States ────────────────────────────────────────────────────
   {
     id: 'kroger',

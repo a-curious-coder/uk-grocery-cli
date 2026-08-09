@@ -32,6 +32,8 @@ export class ProviderFactory {
         return new (require('./tesco/index').TescoProvider)();
       case 'ah':
         return new (require('./ah').AlbertHeijnProvider)();
+      case 'ah-be':
+        return new (require('./ah').AlbertHeijnBEProvider)();
       case 'kroger':
         return new (require('./kroger').KrogerProvider)();
       case 'instacart':

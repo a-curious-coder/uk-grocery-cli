@@ -22,8 +22,15 @@ const CLIENT_ID = 'appie-ios';
 /**
  * Without this header the API returns HTTP 500
  * "Can not find application: 'null'". It is not optional.
+ *
+ * It also selects the storefront. AHBEWEBSHOP serves Albert Heijn Belgium from
+ * the same host, with its own rate-limit bucket — observed returning HTTP 200
+ * while the NL context was throttled.
  */
-const APPLICATION = 'AHWEBSHOP';
+export const AH_APPLICATIONS = {
+  NL: 'AHWEBSHOP',
+  BE: 'AHBEWEBSHOP',
+} as const;
 
 interface AhToken {
   access_token: string;
@@ -44,18 +51,18 @@ interface AhProduct {
 }
 
 export class AlbertHeijnProvider {
-  readonly name = 'ah';
+  readonly name: string = 'ah';
 
   private http: AxiosInstance;
   private token?: string;
   private tokenExpiry = 0;
 
-  constructor() {
+  constructor(application: string = AH_APPLICATIONS.NL) {
     this.http = axios.create({
       baseURL: API_BASE,
       timeout: 15_000,
       headers: {
-        'x-application': APPLICATION,
+        'x-application': application,
         'x-client-name': CLIENT_ID,
         Accept: 'application/json',
         'Content-Type': 'application/json',
@@ -162,5 +169,23 @@ export class AlbertHeijnProvider {
     const first = Array.isArray(data) ? data[0] : undefined;
     if (!first) throw new Error(`Albert Heijn: no product with id ${productId}`);
     return this.toProduct(first);
+  }
+}
+
+/**
+ * Albert Heijn Belgium — same API, different storefront.
+ *
+ * Verified: HTTP 200, 324 results for "brood", and served successfully while the
+ * NL context was rate-limited, which is what shows it is a distinct application
+ * rather than the same catalogue reordered.
+ *
+ * NOT verified: that the assortment and pricing match ah.be exactly. If you shop
+ * there and something looks wrong, please open an issue — that is the check we
+ * could not run from here.
+ */
+export class AlbertHeijnBEProvider extends AlbertHeijnProvider {
+  readonly name: string = 'ah-be';
+  constructor() {
+    super(AH_APPLICATIONS.BE);
   }
 }
