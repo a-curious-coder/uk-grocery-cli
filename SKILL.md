@@ -1,14 +1,14 @@
 ---
-name: uk-grocery-cli
-description: "Multi-supermarket UK grocery automation. Search, basket, delivery, and checkout across Sainsbury's, Ocado, and Tesco. Available as CLI, MCP server, or agent skill."
+name: open-supermarkets
+description: "Grocery automation across nine retailers in five countries — UK, Netherlands, Belgium, Spain and the US. Search, compare, basket, delivery slots and checkout, plus Open Food Facts nutrition and allergen enrichment. Available as CLI, MCP server, or agent skill."
 license: MIT
-compatibility: Node.js 18+, TypeScript, Playwright for auth. UK supermarket delivery areas.
+compatibility: Node.js 18+, TypeScript. Playwright only for browser-auth providers. Delivery areas vary by retailer.
 metadata:
   author: zish
-  version: "2.1.0"
-  repository: https://github.com/abracadabra50/uk-grocery-cli
-  tags: [groceries, sainsburys, ocado, tesco, uk, shopping, automation, mcp, agent-tool]
-allowed-tools: Bash({baseDir}/node:*), Bash(npm:run:groc:*)
+  version: "3.0.0"
+  repository: https://github.com/abracadabra50/open-supermarkets
+  tags: [groceries, supermarket, sainsburys, ocado, tesco, albert-heijn, mercadona, kroger, instacart, uk, netherlands, belgium, spain, usa, shopping, automation, mcp, agent-tool]
+allowed-tools: Bash({baseDir}/node:*), Bash(supermarket:*), Bash(npm:run:supermarket:*)
 ---
 
 # UK Grocery CLI - Agent Skills

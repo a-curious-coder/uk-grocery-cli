@@ -177,9 +177,29 @@ export class TescoAPI {
     const batchResp = await this.client.post(XAPI_URL, batchBody);
     const results: any[] = Array.isArray(batchResp.data) ? batchResp.data : [batchResp.data];
 
-    return results
-      .map((r: any) => r?.data?.product)
-      .filter(Boolean);
+    const products = results.map((r: any) => r?.data?.product).filter(Boolean);
+
+    // Step 1 is unauthenticated and step 2 is not, so an expired session shows up
+    // here as "search found 10 items and returned 0" — indistinguishable from a
+    // genuine no-results query, which is how a dead session masqueraded as an
+    // empty catalogue. If the search API found TPNBs and the detail fetch
+    // resolved none of them, that is an auth failure, not an empty shelf.
+    if (products.length === 0) {
+      const gqlErrors = results
+        .flatMap((r: any) => r?.errors ?? [])
+        .map((e: any) => e?.message)
+        .filter(Boolean);
+
+      throw new Error(
+        `Tesco found ${tpnbs.length} products but could not load any of them` +
+          (gqlErrors.length ? `: ${gqlErrors.slice(0, 2).join('; ')}` : '') +
+          `.\nThis is almost always an expired session — check with ` +
+          `\`supermarket status --provider tesco\` and re-import cookies with ` +
+          `\`supermarket import-session --provider tesco --stdin\`.`
+      );
+    }
+
+    return products;
   }
 
   async getProduct(tpnc: string) {

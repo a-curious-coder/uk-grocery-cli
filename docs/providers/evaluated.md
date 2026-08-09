@@ -14,6 +14,8 @@ is a reason to re-probe, not a reason to stop.
 | DoorDash | US | not worth it | active Cloudflare challenge; official API is merchant-side |
 | Woolworths | AU | blocked | HTTP 403 + HTML body on the product search API |
 | Loblaws / PC Express | CA | blocked | HTTP 403 "Access Denied" on api.pcexpress.ca |
+| Target | US | blocked | RedSky now answers 403 + CAPTCHA challenge |
+| Walmart | US | blocked | consumer GraphQL returns HTTP 418 (bot detection) |
 | Tesco Ireland | IE | needs work | not a header switch; xapi rejects with "Invalid Client" |
 | ~~Mercadona~~ | ES | **BUILT** | Algolia key found in the frontend bundle — see src/providers/mercadona.ts |
 
@@ -179,3 +181,25 @@ slow and bad.
 **If you want to add Spain, this is the task**: find the Algolia credentials in the
 bundle, confirm they are the public search-only key rather than an admin key, and wire
 `search()` to it. Everything else is already open.
+
+## The big US chains, probed 2026-08-09
+
+**Target** — `redsky.target.com` was for years the most open retail API in the US, with
+a public key sitting in the frontend. It now answers **HTTP 403 with a CAPTCHA
+redirect** (`captchaRelativeURL`). Whatever was true in the scraping tutorials is no
+longer true.
+
+**Walmart** — `walmart.com` serves 200, but the consumer GraphQL endpoint at
+`/orchestra/home/graphql` returns **HTTP 418**. That is not a joke status here; it is
+the documented bot-detection response used by their edge protection.
+
+**Loblaws (CA)** — HTTP 403 "Access Denied" on `api.pcexpress.ca`.
+
+All three follow the DoorDash pattern rather than the Kroger one: an official API
+exists but faces *sellers and partners*, and the shopper-facing surface is defended.
+Kroger remains the outlier — the only large US grocer with a documented, self-serve,
+shopper-facing product API.
+
+**If you want more US coverage, Kroger's banner family is the leverage**, not a new
+chain: Ralphs, Fred Meyer, King Soopers, Harris Teeter, Smith's, QFC and Food4Less all
+sit behind the credentials you already have.

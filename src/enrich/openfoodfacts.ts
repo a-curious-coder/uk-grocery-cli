@@ -156,10 +156,51 @@ function similarity(query: string, candidate: string): number {
   const q = tokens(query);
   const c = tokens(candidate);
   if (q.size === 0 || c.size === 0) return 0;
-  let hits = 0;
-  for (const t of q) if (c.has(t)) hits++;
-  return (2 * hits) / (q.size + c.size);
+
+  // A variant marker present on one side and absent on the other is
+  // disqualifying regardless of how well everything else lines up.
+  for (const t of q) if (VARIANT_MARKERS.has(t) && !c.has(t)) return 0;
+  for (const t of c) if (VARIANT_MARKERS.has(t) && !q.has(t)) return 0;
+
+  const shared = [...q].filter(t => c.has(t));
+  if (shared.length === 0) return 0;
+  // At least one shared word must be distinctive. Sharing only "milk" is not a
+  // match, it is a category.
+  if (!shared.some(t => !GENERIC.has(t))) return 0;
+
+  const dice = (2 * shared.length) / (q.size + c.size);
+  // Containment rescues the common case where a retailer's verbose name
+  // ("Nutella Hazelnut Chocolate Spread Jar 630g") maps to a terse canonical
+  // record ("Nutella"). Dice punishes that asymmetry; containment does not.
+  const containment = shared.length / Math.min(q.size, c.size);
+  return Math.max(dice, containment);
 }
+
+/**
+ * Words that change what a product IS, not merely how it is described.
+ *
+ * If the retailer's name says "zero" and the candidate does not, they are
+ * different products however well the rest matches — and attaching regular
+ * Coke's sugar content to a Zero bottle is the exact failure this module exists
+ * to prevent. Checked before any similarity score is even considered.
+ */
+const VARIANT_MARKERS = new Set([
+  'zero', 'diet', 'light', 'lite', 'free', 'decaf', 'decaffeinated',
+  'gluten', 'lactose', 'vegan', 'vegetarian', 'unsalted', 'salted',
+  'reduced', 'low', 'skimmed', 'semi', 'whole', 'wholemeal', 'unsweetened',
+  'sweetened', 'alcohol', 'caffeine', 'sugarfree', 'dairy',
+]);
+
+/**
+ * Generic category nouns. A shared "chocolate" or "milk" alone is not evidence
+ * of the same product — "Chocolate" would otherwise match anything chocolatey.
+ */
+const GENERIC = new Set([
+  'milk', 'chocolate', 'bread', 'cheese', 'water', 'juice', 'yogurt', 'yoghurt',
+  'spread', 'sauce', 'cream', 'butter', 'oil', 'rice', 'pasta', 'beans', 'soup',
+  'crisps', 'chips', 'biscuits', 'coffee', 'tea', 'sugar', 'flour', 'salt',
+  'eggs', 'chicken', 'beef', 'fish', 'drink', 'snack', 'bar', 'jar', 'bottle',
+]);
 
 /** Minimum overlap before we believe a name match. Deliberately strict. */
 const MIN_SIMILARITY = 0.6;
@@ -178,10 +219,22 @@ export async function byName(name: string): Promise<Nutrition | null> {
       headers: { 'User-Agent': USER_AGENT },
       timeout: 10_000,
     });
+
+    // ONLY the top hit is considered, and this is deliberate.
+    //
+    // Scoring the top five instead was tried and reverted: it produced two false
+    // positives immediately — a Coca-Cola ZERO query matched a regular-Coke
+    // record, and Tesco Finest Blueberries matched something scoring Nutri-Score
+    // E. Widening the candidate pool widens the blast radius, because every extra
+    // candidate is another chance for a plausible-but-wrong record to clear the
+    // guard.
+    //
+    // The cost is real misses. Searching a Nutella jar returns an unrelated
+    // "Milkato" at position one, so that product gets no enrichment at all even
+    // though the correct record sits at position two. That is the right trade:
+    // a miss shows nothing, a false positive shows the wrong allergens.
     const hit = data?.hits?.[0];
     if (!hit) return null;
-
-    // A search always returns something. Only believe it if the name agrees.
     if (similarity(name, hit.product_name ?? '') < MIN_SIMILARITY) return null;
 
     // search-a-licious returns a trimmed field set, so re-fetch the full record
