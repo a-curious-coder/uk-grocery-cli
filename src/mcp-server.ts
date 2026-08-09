@@ -117,6 +117,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'grocery_search_batch',
+        description:
+          'Search MANY products in one call. Strongly preferred over repeated grocery_search ' +
+          'when planning meals or building a shop — thirty ingredients is one call instead of ' +
+          'thirty. Returns lean candidates (id, name, price, size, unit price, stock) for YOU ' +
+          'to choose between; it does not pick for you.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            provider: { ...providerEnum, default: 'sainsburys' },
+            queries: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Product queries, e.g. ["semi skimmed milk","free range eggs"]',
+            },
+            limit: { type: 'number', description: 'Candidates per query (default: 5)', default: 5 },
+          },
+          required: ['queries'],
+        },
+      },
+      {
+        name: 'grocery_basket_add_batch',
+        description:
+          'Add MANY products to the basket in one call. Use after grocery_search_batch. ' +
+          'Adds run sequentially and each result reports success individually, so a single ' +
+          'bad id does not lose the rest.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            provider: { ...providerEnum, default: 'sainsburys' },
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', description: 'product_uid from a search result' },
+                  qty: { type: 'number', description: 'Quantity (default: 1)' },
+                },
+                required: ['id'],
+              },
+            },
+          },
+          required: ['items'],
+        },
+      },
+      {
         name: 'grocery_favourites',
         description: 'List favourite / frequently-bought products for a supermarket account. Supported by Sainsbury\'s and Ocado.',
         inputSchema: {
@@ -336,6 +382,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     // ── grocery_compare ──
+    if (name === 'grocery_search_batch') {
+      const { queries = [], limit = 5 } = args as { queries?: string[]; limit?: number };
+      if (!queries.length) return textResult('Give me at least one query.', true);
+      const { batchSearch } = await import('./batch.js');
+      const provider = getProvider(providerName);
+      const results = await batchSearch(provider, queries, { limit });
+      return textResult(JSON.stringify({ provider: providerName, results }, null, 2));
+    }
+
+    if (name === 'grocery_basket_add_batch') {
+      const { items = [] } = args as { items?: Array<{ id: string; qty?: number }> };
+      if (!items.length) return textResult('Give me at least one item.', true);
+      const { batchAdd } = await import('./batch.js');
+      const provider = getProvider(providerName);
+      const results = await batchAdd(provider, items);
+      const added = results.filter(r => r.ok).length;
+      return textResult(
+        JSON.stringify({ provider: providerName, added, total: results.length, results }, null, 2),
+        added < results.length
+      );
+    }
+
     if (name === 'grocery_compare') {
       const { query, limit = 5 } = args as { query: string; limit?: number };
       const results = await compareProduct(query, undefined, limit);

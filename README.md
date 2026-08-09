@@ -13,7 +13,8 @@
 [![Countries](https://img.shields.io/badge/countries-5-2ea44f)](#what-works-where)
 [![Providers](https://img.shields.io/badge/providers-9-2ea44f)](#what-works-where)
 [![No credentials](https://img.shields.io/badge/4%20of%205%20countries-no%20credentials-orange)](#what-works-where)
-[![MCP](https://img.shields.io/badge/MCP-ready-6E56CF)](#three-ways-to-drive-it)
+[![CI](https://github.com/abracadabra50/open-supermarkets/actions/workflows/ci.yml/badge.svg)](https://github.com/abracadabra50/open-supermarkets/actions/workflows/ci.yml)
+[![MCP](https://img.shields.io/badge/MCP-22%20tools-6E56CF)](#three-ways-to-drive-it)
 [![Stars](https://img.shields.io/github/stars/abracadabra50/open-supermarkets?style=flat&color=yellow)](https://github.com/abracadabra50/open-supermarkets/stargazers)
 
 🇬🇧 &nbsp;🇳🇱 &nbsp;🇧🇪 &nbsp;🇪🇸 &nbsp;🇺🇸 &nbsp;&nbsp;·&nbsp;&nbsp; [**your country next?**](#we-want-your-supermarket)
@@ -118,6 +119,7 @@ supermarket search "olive oil" --country ES --limit 5 --json
 | MCP tool | |
 |---|---|
 | `grocery_search` · `grocery_compare` | Find and compare products |
+| **`grocery_search_batch`** · **`grocery_basket_add_batch`** | **Many at once — prefer these** |
 | `grocery_basket_*` | View, add, remove, update, clear |
 | `grocery_slots` · `grocery_book_slot` | Delivery slots |
 | `grocery_checkout` | Place the order — `dry_run` defaults to **true** |
