@@ -15,7 +15,7 @@ is a reason to re-probe, not a reason to stop.
 | Woolworths | AU | blocked | HTTP 403 + HTML body on the product search API |
 | Loblaws / PC Express | CA | blocked | HTTP 403 "Access Denied" on api.pcexpress.ca |
 | Tesco Ireland | IE | needs work | not a header switch; xapi rejects with "Invalid Client" |
-| **Mercadona** | **ES** | **best lead** | **API is open — but no text search endpoint** |
+| ~~Mercadona~~ | ES | **BUILT** | Algolia key found in the frontend bundle — see src/providers/mercadona.ts |
 
 ---
 

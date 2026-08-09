@@ -80,6 +80,19 @@ export const PROVIDERS: ProviderManifest[] = [
     load: async () => (await import('./ah')).AlbertHeijnBEProvider,
   },
 
+  // ── Spain ────────────────────────────────────────────────────────────
+  {
+    id: 'mercadona',
+    label: 'Mercadona',
+    country: 'ES',
+    capabilities: ['search'],
+    auth: 'none',
+    tier: 'core',
+    maintainer: 'abracadabra50',
+    credit: 'Open REST catalogue + the storefront\'s public Algolia search key',
+    load: async () => (await import('./mercadona')).MercadonaProvider,
+  },
+
   // ── United States ────────────────────────────────────────────────────
   {
     id: 'kroger',

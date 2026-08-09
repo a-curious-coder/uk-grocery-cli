@@ -73,6 +73,7 @@ fewer.
 | Ocado | GB | ✓ | ✓ | read-only | — | email + password |
 | Albert Heijn | NL | ✓ | — | — | — | **none** |
 | Albert Heijn België | BE | ✓ | — | — | — | **none** |
+| Mercadona | ES | ✓ | — | — | — | **none** |
 | Kroger *(+ Ralphs, Fred Meyer, King Soopers, Harris Teeter, QFC)* | US | ✓ | — | — | — | official API key |
 | Instacart | US / CA | ✓ | ✓ | — | via link | official API key |
 | Instacart (unofficial) | US / CA | ✓ | ✓ | — | — | browser session |
