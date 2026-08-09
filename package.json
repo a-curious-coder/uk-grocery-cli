@@ -19,7 +19,8 @@
     "api": "tsx src/http-server.ts",
     "mcp": "tsx src/mcp-server.ts",
     "setup": "./setup.sh",
-    "supermarket": "tsx src/cli.ts"
+    "supermarket": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "groceries",
@@ -60,5 +61,19 @@
     "ts-node": "^10.9.0",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "homepage": "https://github.com/abracadabra50/open-supermarkets#readme",
+  "bugs": {
+    "url": "https://github.com/abracadabra50/open-supermarkets/issues"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
