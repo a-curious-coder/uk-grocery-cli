@@ -393,3 +393,45 @@ console.log('\nbatch');
     assert.match(r[1].error, /gone/);
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Kroger UPC reconstruction.
+//
+// Kroger's `upc` is the 11-digit product code padded to 13 with the UPC-A check
+// digit DROPPED, so it never resolves in Open Food Facts as supplied. That one
+// missing digit is the difference between exact allergen data and a name guess.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\nkroger barcodes');
+
+{
+  const { KrogerProvider } = require('../src/providers/kroger');
+  // toBarcode is private on the class; reach it the way the compiler erases to.
+  const toBarcode = (KrogerProvider as any).toBarcode.bind(KrogerProvider);
+
+  check('reconstructs the check digit (verified against Open Food Facts)', () => {
+    assert.strictEqual(toBarcode('0000980089500'), '009800895007'); // Nutella
+    assert.strictEqual(toBarcode('0004900001278'), '049000012781'); // Coca-Cola
+    assert.strictEqual(toBarcode('0004400007841'), '044000078416'); // Oreo
+  });
+
+  check('output is always a 12-digit UPC-A', () => {
+    for (const upc of ['0000980089500', '1', '0001111040119', '99999999999']) {
+      const b = toBarcode(upc)!;
+      assert.strictEqual(b.length, 12, `${upc} → ${b}`);
+      assert.match(b, /^\d{12}$/);
+    }
+  });
+
+  check('the check digit actually validates', () => {
+    const b = toBarcode('0000980089500')!;
+    let odd = 0, even = 0;
+    for (let i = 0; i < 11; i++) (i % 2 === 0 ? (odd += +b[i]) : (even += +b[i]));
+    assert.strictEqual(Number(b[11]), (10 - ((odd * 3 + even) % 10)) % 10);
+  });
+
+  check('junk in gives nothing out, not a wrong barcode', () => {
+    assert.strictEqual(toBarcode(undefined), undefined);
+    assert.strictEqual(toBarcode(''), undefined);
+    assert.strictEqual(toBarcode('0000000'), undefined);
+  });
+}

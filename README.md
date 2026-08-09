@@ -209,8 +209,8 @@ $ supermarket search "semi skimmed milk 2l" --provider tesco --enrich
 ```
 
 **It is deliberately conservative and will often tell you nothing.** That's the design.
-Matching is by barcode where a provider exposes one (Kroger and Mercadona do), by name
-where it doesn't — and a name match must clear a strict guard:
+Matching is by barcode where a provider exposes one, by name where it doesn't — and a
+name match must clear a strict guard:
 
 - A **variant marker** on one side and not the other is disqualifying. "Zero" versus
   regular is a different product however well the rest matches.
@@ -219,9 +219,21 @@ where it doesn't — and a name match must clear a strict guard:
 - Only the **top candidate** is considered. Scoring the top five was tried and reverted
   — it immediately matched a Coca-Cola Zero query to a regular-Coke record.
 
-The cost is real misses. A Nutella jar gets nothing, because Open Food Facts returns an
-unrelated product at position one. That's the right trade: **a miss shows nothing, a
-false positive shows the wrong allergens.**
+The cost is real misses. A Nutella jar from a UK provider gets nothing, because Open
+Food Facts returns an unrelated product at position one. That's the right trade: **a
+miss shows nothing, a false positive shows the wrong allergens.**
+
+**Kroger and Mercadona expose barcodes, so their matches are exact rather than guessed:**
+
+```console
+$ supermarket search nutella --provider kroger --enrich
+  Nutella® Hazelnut Spread with Cocoa   $6.49 / 13 oz
+    Nutri-Score E · NOVA 4 · allergens: milk, nuts, soybeans · matched by barcode
+```
+
+Kroger's `upc` field needed reconstructing first — it's the 11-digit product code
+padded to 13 with the UPC-A check digit dropped, so it resolves to nothing as supplied.
+One missing digit was the difference between exact allergen data and a name guess.
 
 Never rely on it for an allergy. Read the packet.
 

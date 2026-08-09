@@ -125,6 +125,47 @@ export class KrogerProvider {
     }
   }
 
+  /**
+   * Kroger's `upc` is NOT a scannable barcode — it is the 11-digit product code
+   * zero-padded to 13, with the UPC-A check digit dropped.
+   *
+   * That one missing digit is why Open Food Facts returns nothing for a Kroger
+   * product straight out of the API. Reconstructing it turns enrichment from a
+   * fuzzy name guess into an exact lookup:
+   *
+   *   0000980089500 → 009800895007 → Nutella, Nutri-Score E, allergens
+   *                                  milk / nuts / soybeans
+   *
+   * Verified against Nutella, Coca-Cola and Oreo. Own-brand Kroger lines mostly
+   * are not in Open Food Facts at all, which is a coverage gap rather than a
+   * normalisation one.
+   */
+  private static toBarcode(upc?: string): string | undefined {
+    if (!upc) return undefined;
+    const core = upc.replace(/\D/g, '').replace(/^0+/, '');
+    if (!core) return undefined;
+    const d11 = (core.length > 11 ? core.slice(0, 11) : core).padStart(11, '0');
+    let odd = 0;
+    let even = 0;
+    for (let i = 0; i < 11; i++) {
+      const n = Number(d11[i]);
+      if (i % 2 === 0) odd += n;
+      else even += n;
+    }
+    const check = (10 - ((odd * 3 + even) % 10)) % 10;
+    return `${d11}${check}`;
+  }
+
+  private static label(p: KrogerProduct): string {
+    const desc = (p.description ?? '').trim();
+    const brand = (p.brand ?? '').trim();
+    if (!desc) return brand || '(unnamed)';
+    if (!brand) return desc;
+    // Compare on letters only — "Ralphs" vs "Ralphs®" must count as the same.
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return norm(desc).includes(norm(brand)) ? desc : `${brand} ${desc}`;
+  }
+
   private toProduct(p: KrogerProduct): Product {
     // A product carries one entry per sellable item; the first is the default.
     const item = p.items?.[0];
@@ -137,10 +178,12 @@ export class KrogerProvider {
       images.find(s => s.size === 'large')?.url ?? images[images.length - 1]?.url;
 
     return {
-      // The UPC is the barcode, which makes Open Food Facts enrichment exact
-      // rather than a name guess — worth preferring over the internal id.
-      product_uid: p.upc || p.productId,
-      name: [p.brand, p.description].filter(Boolean).join(' ').trim() || p.description || '(unnamed)',
+      // Reconstructed barcode where possible, so enrichment is an exact lookup.
+      product_uid: KrogerProvider.toBarcode(p.upc) || p.upc || p.productId,
+      // description often already carries the brand ("Ralphs® Vitamin D Whole
+      // Milk"), so prefixing unconditionally gives "Ralphs Ralphs® …". Only
+      // prepend when genuinely absent. Same trap as Mercadona.
+      name: KrogerProvider.label(p),
       retail_price: { price },
       in_stock: (item?.inventory?.stockLevel ?? 'HIGH') !== 'TEMPORARILY_OUT_OF_STOCK',
       image_url: image,
