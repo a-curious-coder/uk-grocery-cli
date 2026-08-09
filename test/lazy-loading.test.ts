@@ -295,3 +295,101 @@ setTimeout(() => {
   console.log(failures === 0 ? '\nall passed' : `\n${failures} failed`);
   process.exit(failures === 0 ? 0 : 1);
 }, 250);
+
+// ─────────────────────────────────────────────────────────────────────
+// Batch primitives.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\nbatch');
+
+{
+  const { parseBatchInput, parseAddInput, lean, batchSearch, batchAdd } = require('../src/batch');
+
+  check('accepts the shapes an agent actually emits', () => {
+    assert.deepStrictEqual(parseBatchInput('["milk","eggs"]'), ['milk', 'eggs']);
+    assert.deepStrictEqual(parseBatchInput('{"queries":["milk"]}'), ['milk']);
+    assert.deepStrictEqual(parseBatchInput('milk\neggs\n# a comment\n'), ['milk', 'eggs']);
+    assert.deepStrictEqual(parseBatchInput('[{"query":"milk","limit":3}]'), [
+      { query: 'milk', limit: 3 },
+    ]);
+  });
+
+  check('add input takes ids, "id qty" lines, and objects', () => {
+    // Both input styles must produce the SAME shape — qty omitted when absent,
+    // not present-but-undefined.
+    assert.deepStrictEqual(parseAddInput('["123"]'), [{ id: '123' }]);
+    assert.deepStrictEqual(parseAddInput('123 2\n456'), [{ id: '123', qty: 2 }, { id: '456' }]);
+    assert.deepStrictEqual(parseAddInput('[{"id":"9","qty":3}]'), [{ id: '9', qty: 3 }]);
+  });
+
+  check('empty input fails loudly rather than silently doing nothing', () => {
+    assert.throws(() => parseBatchInput('   '), /empty/i);
+  });
+
+  check('lean output drops everything a model does not need to choose', () => {
+    const l = lean({
+      product_uid: 'x', name: 'Milk', retail_price: { price: 1.2 }, in_stock: true,
+      provider: 'ocado', currency: 'GBP', size: '2L',
+      image_url: 'https://example/huge.jpg',
+      description: 'a very long description that would eat context',
+      unit_price: { price: 0.6, measure: 'ltr' },
+    } as any);
+    assert.deepStrictEqual(Object.keys(l).sort(),
+      ['currency', 'id', 'inStock', 'name', 'price', 'size', 'unit']);
+    assert.strictEqual(l.unit, '0.6/ltr');
+  });
+
+  // One bad ingredient must not cost you the other twenty-nine.
+  check('a failing query is isolated, not fatal', async () => {
+    const flaky = {
+      name: 'flaky',
+      async search(q: string) {
+        if (q === 'boom') throw new Error('rate limited');
+        return [{ product_uid: '1', name: q, retail_price: { price: 1 }, in_stock: true, provider: 'flaky' }];
+      },
+    };
+    const r = await batchSearch(flaky as any, ['milk', 'boom', 'eggs']);
+    assert.strictEqual(r.length, 3);
+    assert.strictEqual(r[0].products.length, 1);
+    assert.match(r[1].error, /rate limited/);
+    assert.strictEqual(r[2].products.length, 1, 'a later query must still run');
+  });
+
+  check('batch order matches input order', async () => {
+    const p = {
+      name: 'p',
+      async search(q: string) {
+        await new Promise(r => setTimeout(r, q === 'slow' ? 40 : 1));
+        return [{ product_uid: q, name: q, retail_price: { price: 0 }, in_stock: true, provider: 'p' }];
+      },
+    };
+    const r = await batchSearch(p as any, ['slow', 'fast', 'also-fast']);
+    assert.deepStrictEqual(r.map((x: any) => x.query), ['slow', 'fast', 'also-fast']);
+  });
+
+  // Baskets are mutable server state and some providers resolve ids against the
+  // live basket on every write, so adds must not race each other.
+  check('batch add is sequential', async () => {
+    let inFlight = 0, maxInFlight = 0;
+    const p = {
+      name: 'p',
+      async addToBasket() {
+        inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise(r => setTimeout(r, 5));
+        inFlight--;
+      },
+    };
+    await batchAdd(p as any, [{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+    assert.strictEqual(maxInFlight, 1, 'concurrent basket writes race');
+  });
+
+  check('a failed add is reported, not thrown', async () => {
+    const p = {
+      name: 'p',
+      async addToBasket(id: string) { if (id === 'bad') throw new Error('gone'); },
+    };
+    const r = await batchAdd(p as any, [{ id: 'ok' }, { id: 'bad' }]);
+    assert.strictEqual(r[0].ok, true);
+    assert.strictEqual(r[1].ok, false);
+    assert.match(r[1].error, /gone/);
+  });
+}

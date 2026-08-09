@@ -1,12 +1,26 @@
-# open-supermarkets
+<div align="center">
 
-**One command line for the world's supermarkets. Built for agents.**
+# open&#8203;-supermarkets
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Stars](https://img.shields.io/github/stars/abracadabra50/open-supermarkets?style=social)](https://github.com/abracadabra50/open-supermarkets/stargazers)
+### One command line for the world's supermarkets
 
-Search real products at real prices, build a basket, book a slot, check out — across
-nine retailers in five countries.
+**Search real products at real prices, build a basket, book a slot, check out —<br>across nine retailers in five countries. Built for AI agents.**
+
+<br>
+
+[![npm](https://img.shields.io/npm/v/open-supermarkets?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/open-supermarkets)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Countries](https://img.shields.io/badge/countries-5-2ea44f)](#what-works-where)
+[![Providers](https://img.shields.io/badge/providers-9-2ea44f)](#what-works-where)
+[![No credentials](https://img.shields.io/badge/4%20of%205%20countries-no%20credentials-orange)](#what-works-where)
+[![MCP](https://img.shields.io/badge/MCP-ready-6E56CF)](#three-ways-to-drive-it)
+[![Stars](https://img.shields.io/github/stars/abracadabra50/open-supermarkets?style=flat&color=yellow)](https://github.com/abracadabra50/open-supermarkets/stargazers)
+
+🇬🇧 &nbsp;🇳🇱 &nbsp;🇧🇪 &nbsp;🇪🇸 &nbsp;🇺🇸 &nbsp;&nbsp;·&nbsp;&nbsp; [**your country next?**](#we-want-your-supermarket)
+
+</div>
+
+---
 
 ```console
 $ supermarket compare milk
@@ -117,6 +131,52 @@ anything that reads `SKILL.md`.
 
 There's also `supermarket-api`, a plain HTTP server, for agents with network access but
 no filesystem.
+
+---
+
+## Batch mode — built for how agents actually work
+
+A week of meals is about thirty ingredients. One at a time that's thirty searches plus
+thirty adds: sixty process starts, sixty MCP round trips, sixty tool results filling
+the model's context. The agent spends its budget on plumbing instead of on deciding
+what to cook.
+
+```console
+$ echo '["semi skimmed milk","free range eggs","chicken breast","broccoli"]' \
+    | supermarket search --batch - --provider ocado --limit 2
+```
+
+```json
+{
+  "provider": "ocado",
+  "results": [
+    { "query": "semi skimmed milk",
+      "products": [{ "id": "73f814b7", "name": "Ocado British Semi Skimmed Milk 2 Pints",
+                     "price": 1.20, "currency": "GBP", "size": "1.136L",
+                     "unit": "1.06/1.136L", "inStock": true }] }
+  ]
+}
+```
+
+Then pick, and add them all in one call:
+
+```bash
+supermarket add --batch picks.json     # [{"id":"73f814b7","qty":2}, ...]
+```
+
+Six queries take **1.7s in one invocation** rather than six. Input is forgiving — a
+JSON array, an object with `queries`, or newline-delimited text from a pipe.
+
+Output is deliberately **lean**: id, name, price, currency, size, unit price, stock.
+No images, no descriptions, no ratings. Thirty queries by five candidates by a full
+product record is a serious slice of a context window, and none of it helps a model
+choose between two milks.
+
+**Batch search returns candidates. It does not choose.** Picking a 650g pack for a
+200g recipe is a judgement about your money and your fridge, and the model has context
+the CLI never will — the rest of the plan, the budget, whether leftovers are fine. One
+bad query returns an `error` on its own entry rather than sinking the batch. Adds run
+sequentially, because baskets are mutable server-side state and concurrent writes race.
 
 ---
 

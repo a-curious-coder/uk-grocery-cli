@@ -158,11 +158,12 @@ program
 
 // Search
 program
-  .command('search <query>')
+  .command('search [query]')
   .description('Search for products')
   .option('-l, --limit <number>', 'Max results', '24')
   .option('-c, --country <code>', 'Country to shop in (ISO 3166-1 alpha-2)')
   .option('--enrich', 'Add Nutri-Score, NOVA and allergens from Open Food Facts')
+  .option('--batch <file>', 'Run many queries at once. JSON array, or - for stdin')
   .option('--json', 'Output as JSON')
   .action(async (query, options, cmd) => {
     try {
@@ -179,6 +180,35 @@ program
         provider = await createProvider(first.id);
       } else {
         provider = getProvider(globals);
+      }
+
+      // Batch mode: thirty queries in one invocation instead of thirty.
+      if (options.batch) {
+        const { batchSearch, parseBatchInput } = await import('./batch');
+        const raw =
+          options.batch === '-'
+            ? require('fs').readFileSync(0, 'utf-8')
+            : require('fs').readFileSync(
+                options.batch.startsWith('~')
+                  ? require('path').join(require('os').homedir(), options.batch.slice(1))
+                  : options.batch,
+                'utf-8'
+              );
+        const queries = parseBatchInput(raw);
+        const results = await batchSearch(provider, queries, { limit });
+
+        if (options.json !== false) {
+          console.log(JSON.stringify({ provider: provider.name, results }, null, 2));
+          return;
+        }
+        for (const r of results) {
+          console.log(`\n${r.query}`);
+          if (r.error) { console.log(`  error: ${r.error}`); continue; }
+          for (const p of r.products) {
+            console.log(`  ${money(p.price, p.currency)}  ${p.name}${p.size ? ` (${p.size})` : ''}`);
+          }
+        }
+        return;
       }
 
       let products: any[] = await provider.search(query, { limit });
@@ -459,12 +489,31 @@ program
 
 // Add to basket
 program
-  .command('add <product-id>')
-  .description('Add product to basket')
+  .command('add [product-id]')
+  .description('Add product(s) to basket')
   .option('-q, --qty <number>', 'Quantity', '1')
+  .option('--batch <file>', 'Add many at once. JSON [{id,qty}], or - for stdin')
   .action(async (productId, options, cmd) => {
     try {
       const provider = getProvider(cmd.optsWithGlobals());
+
+      if (options.batch) {
+        const { batchAdd, parseAddInput } = await import('./batch');
+        const raw =
+          options.batch === '-'
+            ? require('fs').readFileSync(0, 'utf-8')
+            : require('fs').readFileSync(options.batch, 'utf-8');
+        const results = await batchAdd(provider, parseAddInput(raw));
+        const ok = results.filter(r => r.ok).length;
+        console.log(JSON.stringify({ provider: provider.name, added: ok, total: results.length, results }, null, 2));
+        if (ok < results.length) process.exit(1);
+        return;
+      }
+
+      if (!productId) {
+        console.error('❌ Give a product id, or use --batch. See --help.');
+        process.exit(1);
+      }
       await provider.addToBasket(productId, parsePositiveInt(options.qty, 'qty'));
       console.log(`✅ Added to ${provider.name} basket`);
     } catch (error: any) {
