@@ -12,6 +12,10 @@ is a reason to re-probe, not a reason to stop.
 | Jumbo | NL | blocked | Akamai; connection refused outright |
 | Picnic | NL | unknown | endpoint not found; needs real discovery |
 | DoorDash | US | not worth it | active Cloudflare challenge; official API is merchant-side |
+| Woolworths | AU | blocked | HTTP 403 + HTML body on the product search API |
+| Loblaws / PC Express | CA | blocked | HTTP 403 "Access Denied" on api.pcexpress.ca |
+| Tesco Ireland | IE | needs work | not a header switch; xapi rejects with "Invalid Client" |
+| **Mercadona** | **ES** | **best lead** | **API is open — but no text search endpoint** |
 
 ---
 
@@ -130,3 +134,48 @@ print({k:re.findall(chr(34)+k+chr(34)+r'\s*:\s*\"?([0-9]+)\"?',s)[:1] for k in (
 
 At time of writing Costco SF returned `zoneId=1`, `shopId=12`, `retailerId=5`,
 `postalCode=94105`. They are per-store and per-area — use one that delivers to you.
+
+---
+
+## Probed 2026-08-09, while looking for a fourth country
+
+**Woolworths (AU)** — `/apis/ui/Search/products` returns HTTP 403 with an HTML body.
+Bot-protected, same shape as DoorDash. A new continent would have been the strongest
+possible addition; it is not reachable.
+
+**Loblaws / PC Express (CA)** — `api.pcexpress.ca/product-facade/v4/products/search`
+returns HTTP 403 "Access Denied" (Akamai-style HTML). Canada is currently covered only
+by Instacart, which is itself gated.
+
+**Tesco Ireland (IE)** — not the free win Albert Heijn Belgium was. AH switches
+storefront on a request header; Tesco's `xapi.tesco.com` answers `Forbidden: Invalid
+Client`, so the IE storefront uses different client credentials that would have to be
+captured separately. Possible, but it is an investigation rather than a manifest entry.
+
+### Mercadona (ES) — the one genuinely worth picking up
+
+**The API is open.** No auth, no token, no bot challenge:
+
+```
+GET /api/categories/          → 200, paginated category tree
+GET /api/products/{id}/       → 200, full product
+```
+
+A product carries `display_name`, `brand`, `ean`, `categories`, and
+`price_instructions.unit_price`. Verified live: *Aceite de oliva 0,4º Hacendado*,
+EAN `8402001027475`, €3.80.
+
+**The `ean` is the barcode**, which matters more than it sounds — it makes Open Food
+Facts an exact lookup rather than the fuzzy name match every provider except Kroger is
+stuck with. Allergen data from Mercadona would be trustworthy.
+
+**What blocks it: there is no text search endpoint.** `/api/search/` and
+`/api/products/?query=` both 404. Mercadona's storefront search is Algolia-backed, and
+the app id and search key are in a frontend JS bundle rather than the page HTML. Search
+is the one required capability in `GroceryProvider`, so this cannot ship until someone
+extracts those keys — or builds search by walking the category tree, which would be
+slow and bad.
+
+**If you want to add Spain, this is the task**: find the Algolia credentials in the
+bundle, confirm they are the public search-only key rather than an admin key, and wire
+`search()` to it. Everything else is already open.
