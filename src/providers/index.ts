@@ -30,10 +30,18 @@ export class ProviderFactory {
         return new (require('./ocado').OcadoProvider)();
       case 'tesco':
         return new (require('./tesco/index').TescoProvider)();
+      case 'ah':
+        return new (require('./ah').AlbertHeijnProvider)();
+      case 'instacart':
+        return new (require('./instacart').InstacartProvider)();
+      case 'instacart-web':
+        return new (require('./instacart-web').InstacartWebProvider)();
       default:
+        // Reachable only if a manifest entry has no case here — which the
+        // registry-parity test catches before it ships.
         throw new Error(
-          `"${name}" cannot be created synchronously. ` +
-            `Use \`await createProvider('${name}')\`.`
+          `"${name}" has a manifest entry but no synchronous constructor. ` +
+            `Add a case to ProviderFactory.create, or use \`await createProvider('${name}')\`.`
         );
     }
   }

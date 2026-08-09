@@ -105,18 +105,20 @@ check('resolveCountry prefers the explicit argument', () => {
   delete process.env.GROC_COUNTRY;
 });
 
-// 3. Only now, on demand, should a provider module appear.
-(async () => {
-  await registry.createProvider('ah');
-  check('createProvider loads exactly the one provider asked for', () => {
-    const loaded = loadedProviderModules();
-    assert.strictEqual(loaded.length, 1, `expected 1 module, got ${loaded.length}`);
-    assert.match(loaded[0], /providers[/\\]ah/);
-  });
-
-  console.log(failures === 0 ? '\nall passed' : `\n${failures} failed`);
-  process.exit(failures === 0 ? 0 : 1);
-})();
+// 3. Only now, on demand, should exactly one provider module appear.
+//
+// Deliberately SYNCHRONOUS. An earlier version awaited createProvider(), which
+// suspended this block while every later test in the file ran and loaded all six
+// providers — so the cache assertion resumed against a polluted cache and failed
+// for reasons unrelated to laziness. The sync path proves the same property and
+// cannot be reordered out from under itself.
+check('creating one provider loads exactly that provider', () => {
+  const { ProviderFactory } = require('../src/providers');
+  ProviderFactory.create('ah');
+  const loaded = loadedProviderModules();
+  assert.strictEqual(loaded.length, 1, `expected 1 module, got ${loaded.length}: ${loaded}`);
+  assert.match(loaded[0], /providers[/\\]ah/);
+});
 
 // ─────────────────────────────────────────────────────────────────────
 // Checkout must never place an order unless --confirm was passed.
@@ -236,3 +238,60 @@ console.log('\nerror translation');
     assert.strictEqual(explain({ message: considered }, { provider: 'ocado' }), considered);
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Registry / factory parity.
+//
+// Every manifest entry must be constructible through BOTH paths — the async
+// createProvider() and the legacy synchronous ProviderFactory that `--provider`
+// still uses. They drifted: ah, instacart and instacart-web were in the registry
+// and reachable via --country, but `--provider ah` threw "cannot be created
+// synchronously". The international providers were effectively unreachable by
+// the flag most people would type.
+// ─────────────────────────────────────────────────────────────────────
+console.log('\nregistry/factory parity');
+
+{
+  const { PROVIDERS, ProviderFactory } = require('../src/providers');
+
+  check('every manifest entry has a synchronous constructor', () => {
+    const broken: string[] = [];
+    for (const m of PROVIDERS) {
+      try {
+        ProviderFactory.create(m.id);
+      } catch (err: any) {
+        // Missing credentials are fine — that is the provider working correctly.
+        // "cannot be created" / "no synchronous constructor" is the drift we care about.
+        if (/synchronous/i.test(err.message)) broken.push(m.id);
+      }
+    }
+    assert.deepStrictEqual(
+      broken,
+      [],
+      `these are in the registry but unreachable via --provider: ${broken.join(', ')}`
+    );
+  });
+
+  check('every manifest entry is loadable asynchronously too', async () => {
+    const { createProvider } = require('../src/providers');
+    const broken: string[] = [];
+    for (const m of PROVIDERS) {
+      try {
+        await createProvider(m.id);
+      } catch (err: any) {
+        if (/Cannot find module|is not a constructor|undefined/i.test(err.message)) {
+          broken.push(`${m.id}: ${err.message}`);
+        }
+      }
+    }
+    assert.deepStrictEqual(broken, [], `bad load() thunks: ${broken.join(' | ')}`);
+  });
+}
+
+// Async checks above resolve on the microtask queue, so give them a tick before
+// reporting. Anything still pending after this would be a test that forgot to
+// return its promise.
+setTimeout(() => {
+  console.log(failures === 0 ? '\nall passed' : `\n${failures} failed`);
+  process.exit(failures === 0 ? 0 : 1);
+}, 250);
