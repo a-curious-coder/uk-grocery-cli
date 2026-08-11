@@ -1,13 +1,16 @@
 {
-  "name": "uk-grocery-cli",
-  "version": "2.1.0",
-  "description": "Multi-supermarket grocery CLI for UK. Sainsbury's, Ocado, and more. Built for AI agents.",
+  "name": "open-supermarkets",
+  "version": "3.0.0",
+  "description": "CLI, MCP and Skills for the world's supermarkets. Search, compare, basket and checkout across 9 providers in 6 countries. Built for AI agents.",
   "type": "commonjs",
   "main": "dist/cli.js",
   "bin": {
-    "groc": "./dist/cli.js",
-    "groc-mcp": "./dist/mcp-server.js",
-    "groc-api": "./dist/http-server.js"
+    "supermarket": "dist/cli.js",
+    "supermarket-mcp": "dist/mcp-server.js",
+    "supermarket-api": "dist/http-server.js",
+    "groc": "dist/cli.js",
+    "groc-mcp": "dist/mcp-server.js",
+    "groc-api": "dist/http-server.js"
   },
   "scripts": {
     "build": "tsc",
@@ -15,27 +18,39 @@
     "groc": "tsx src/cli.ts",
     "api": "tsx src/http-server.ts",
     "mcp": "tsx src/mcp-server.ts",
-    "setup": "./setup.sh"
+    "setup": "./setup.sh",
+    "supermarket": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build",
+    "test": "tsx test/lazy-loading.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "groceries",
-    "sainsburys",
-    "ocado",
-    "tesco",
-    "uk",
+    "supermarket",
     "shopping",
     "automation",
     "ai-agent",
-    "cli",
     "mcp",
     "model-context-protocol",
-    "claude-desktop"
+    "cli",
+    "tesco",
+    "sainsburys",
+    "ocado",
+    "albert-heijn",
+    "instacart",
+    "open-food-facts",
+    "uk",
+    "netherlands",
+    "belgium",
+    "spain",
+    "usa",
+    "canada"
   ],
   "author": "Zishan Ashraf",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abracadabra50/uk-grocery-cli"
+    "url": "git+https://github.com/abracadabra50/open-supermarkets.git"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
@@ -51,5 +66,19 @@
     "ts-node": "^10.9.0",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "homepage": "https://github.com/abracadabra50/open-supermarkets#readme",
+  "bugs": {
+    "url": "https://github.com/abracadabra50/open-supermarkets/issues"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

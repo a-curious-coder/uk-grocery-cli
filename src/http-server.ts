@@ -3,22 +3,23 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 import { ProviderFactory, ProviderName } from './providers';
-import type { GroceryProvider, SearchOptions } from './providers/types';
+import type { FullGroceryProvider, SearchOptions } from './providers/types';
 
-type FavouritesProvider = GroceryProvider & {
+type FavouritesProvider = FullGroceryProvider & {
   getFavourites?: (options?: SearchOptions) => Promise<unknown[]>;
   searchFavourites?: (query: string, options?: SearchOptions) => Promise<unknown[]>;
 };
 
-const host = process.env.GROC_API_HOST || '127.0.0.1';
-const port = parsePort(process.env.GROC_API_PORT || '7876');
-const defaultProvider = (process.env.GROC_PROVIDER || 'sainsburys') as ProviderName;
-const apiToken = process.env.GROC_API_TOKEN;
+// SUPERMARKET_* preferred; GROC_* still honoured for pre-3.0 setups.
+const host = process.env.SUPERMARKET_API_HOST || process.env.GROC_API_HOST || '127.0.0.1';
+const port = parsePort(process.env.SUPERMARKET_API_PORT || process.env.GROC_API_PORT || '7876');
+const defaultProvider = (process.env.SUPERMARKET_PROVIDER || process.env.GROC_PROVIDER || 'sainsburys') as ProviderName;
+const apiToken = process.env.SUPERMARKET_API_TOKEN || process.env.GROC_API_TOKEN;
 
 function parsePort(value: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    throw new Error(`Invalid GROC_API_PORT: ${value}`);
+    throw new Error(`Invalid SUPERMARKET_API_PORT: ${value}`);
   }
   return parsed;
 }
@@ -32,7 +33,7 @@ function parsePositiveInt(value: string | null, name: string, defaultValue: numb
   return parsed;
 }
 
-function getProvider(url: URL): GroceryProvider {
+function getProvider(url: URL): FullGroceryProvider {
   const providerName = (url.searchParams.get('provider') || defaultProvider) as ProviderName;
   return ProviderFactory.create(providerName);
 }
@@ -152,12 +153,12 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`groc API listening on http://${host}:${port}`);
+  console.log(`open-supermarkets API listening on http://${host}:${port}`);
   console.log(`Provider: ${defaultProvider}`);
   if (!apiToken) {
-    console.log('No GROC_API_TOKEN set; relying on localhost binding for access control.');
+    console.log('No SUPERMARKET_API_TOKEN set; relying on localhost binding for access control.');
   }
   if (host !== '127.0.0.1' && host !== 'localhost' && !apiToken) {
-    console.warn('WARNING: API is not bound to localhost and has no token. Set GROC_API_TOKEN.');
+    console.warn('WARNING: API is not bound to localhost and has no token. Set SUPERMARKET_API_TOKEN.');
   }
 });

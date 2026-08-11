@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A PR from a fork must be verifiable without secrets. Every test here runs
+# offline against fakes — no provider credentials, no network. Provider health
+# is a separate concern precisely because it fails for reasons a contributor
+# cannot fix.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npm test
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Catches the mistake that shipped once already: publishing src/ and
+      # test/ to everyone because `files` was missing.
+      - name: Check the published tarball contents
+        run: |
+          npm pack --silent > /dev/null
+          tar -tzf open-supermarkets-*.tgz | sed 's|^package/||' | cut -d/ -f1 | sort -u > /tmp/shipped
+          echo "Shipping:"; cat /tmp/shipped
+          for unwanted in src test docs node_modules .github; do
+            if grep -qx "$unwanted" /tmp/shipped; then
+              echo "::error::$unwanted/ would be published to npm — check the \"files\" field"
+              exit 1
+            fi
+          done
+          test -s /tmp/shipped
