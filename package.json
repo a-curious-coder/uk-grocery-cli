@@ -5,12 +5,12 @@
   "type": "commonjs",
   "main": "dist/cli.js",
   "bin": {
-    "supermarket": "./dist/cli.js",
-    "supermarket-mcp": "./dist/mcp-server.js",
-    "supermarket-api": "./dist/http-server.js",
-    "groc": "./dist/cli.js",
-    "groc-mcp": "./dist/mcp-server.js",
-    "groc-api": "./dist/http-server.js"
+    "supermarket": "dist/cli.js",
+    "supermarket-mcp": "dist/mcp-server.js",
+    "supermarket-api": "dist/http-server.js",
+    "groc": "dist/cli.js",
+    "groc-mcp": "dist/mcp-server.js",
+    "groc-api": "dist/http-server.js"
   },
   "scripts": {
     "build": "tsc",
@@ -50,7 +50,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abracadabra50/open-supermarkets"
+    "url": "git+https://github.com/abracadabra50/open-supermarkets.git"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
