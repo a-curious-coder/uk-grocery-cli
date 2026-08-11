@@ -4,20 +4,20 @@
 
 ### One command line for the world's supermarkets
 
-**Search real products at real prices, build a basket, book a slot, check out —<br>across nine retailers in five countries. Built for AI agents.**
+**Search real products at real prices, build a basket, book a slot, check out —<br>across nine providers in six countries. Built for AI agents.**
 
 <br>
 
 [![npm](https://img.shields.io/npm/v/open-supermarkets?color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/open-supermarkets)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Countries](https://img.shields.io/badge/countries-5-2ea44f)](#what-works-where)
+[![Countries](https://img.shields.io/badge/countries-6-2ea44f)](#what-works-where)
 [![Providers](https://img.shields.io/badge/providers-9-2ea44f)](#what-works-where)
-[![No credentials](https://img.shields.io/badge/4%20of%205%20countries-no%20credentials-orange)](#what-works-where)
+[![No credentials](https://img.shields.io/badge/3%20of%206%20countries-no%20credentials-orange)](#what-works-where)
 [![CI](https://github.com/abracadabra50/open-supermarkets/actions/workflows/ci.yml/badge.svg)](https://github.com/abracadabra50/open-supermarkets/actions/workflows/ci.yml)
 [![MCP](https://img.shields.io/badge/MCP-22%20tools-6E56CF)](#three-ways-to-drive-it)
 [![Stars](https://img.shields.io/github/stars/abracadabra50/open-supermarkets?style=flat&color=yellow)](https://github.com/abracadabra50/open-supermarkets/stargazers)
 
-🇬🇧 &nbsp;🇳🇱 &nbsp;🇧🇪 &nbsp;🇪🇸 &nbsp;🇺🇸 &nbsp;&nbsp;·&nbsp;&nbsp; [**your country next?**](#we-want-your-supermarket)
+🇬🇧 &nbsp;🇳🇱 &nbsp;🇧🇪 &nbsp;🇪🇸 &nbsp;🇺🇸 &nbsp;🇨🇦 &nbsp;&nbsp;·&nbsp;&nbsp; [**your country next?**](#we-want-your-supermarket)
 
 </div>
 
@@ -36,8 +36,8 @@ $ supermarket search melk --country NL
   Campina Halfvolle melk           €1.89 / 1,5 l
 ```
 
-**Four of the five countries need no credentials at all.** No key, no account, no
-signup — Spain and the Netherlands answer an anonymous request.
+**Three of the six countries need no credentials at all.** No key, no account, no
+signup — Spain, the Netherlands and Belgium answer an anonymous request.
 
 ---
 

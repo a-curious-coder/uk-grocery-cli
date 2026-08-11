@@ -1,7 +1,7 @@
 {
   "name": "open-supermarkets",
   "version": "3.0.0",
-  "description": "One command line for the world's supermarkets. Search, basket, slots and checkout across retailers and countries. Built for AI agents.",
+  "description": "CLI, MCP and Skills for the world's supermarkets. Search, compare, basket and checkout across 9 providers in 6 countries. Built for AI agents.",
   "type": "commonjs",
   "main": "dist/cli.js",
   "bin": {
@@ -41,7 +41,10 @@
     "open-food-facts",
     "uk",
     "netherlands",
-    "usa"
+    "belgium",
+    "spain",
+    "usa",
+    "canada"
   ],
   "author": "Zishan Ashraf",
   "license": "MIT",
